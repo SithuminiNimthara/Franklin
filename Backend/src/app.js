@@ -1,11 +1,12 @@
-import express from 'express';
-import cors from 'cors';
-import { config } from './config/env.js';
-import streamingRoutes from './modules/streaming/streaming.routes.js';
-import turtlesRoutes from './modules/turtles/turtles.routes.js';
-import nestsRoutes from './modules/nests/nests.routes.js';
-import usersRoutes from './modules/users/users.routes.js';
-import { streamingService } from './modules/streaming/streaming.service.js';
+import express from "express";
+import cors from "cors";
+import { config } from "./config/env.js";
+import streamingRoutes from "./modules/streaming/streaming.routes.js";
+import turtlesRoutes from "./modules/turtles/turtles.routes.js";
+import nestsRoutes from "./modules/nests/nests.routes.js";
+import usersRoutes from "./modules/users/users.routes.js";
+import { streamingService } from "./modules/streaming/streaming.service.js";
+import shorelineRoutes from "./modules/shoreline/shoreline.routes.js";
 
 const app = express();
 
@@ -14,25 +15,31 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize Services
-streamingService.startAllCameras();
+// streamingService.startAllCameras();
 
 // Static Routes (Streaming)
 // Serving the streams directory directly as before to maintain frontend compatibility
-app.use('/streams', express.static(config.streamDir, {
+app.use(
+  "/streams",
+  express.static(config.streamDir, {
     setHeaders(res) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-    }
-}));
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    },
+  })
+);
 
 // API Routes
-app.use('/api/streaming', streamingRoutes);
-app.use('/api/turtles', turtlesRoutes);
-app.use('/api/nests', nestsRoutes);
-app.use('/api/users', usersRoutes);
+app.use("/api/streaming", streamingRoutes);
+app.use("/api/turtles", turtlesRoutes);
+app.use("/api/nests", nestsRoutes);
+app.use("/api/users", usersRoutes);
+
+// Shoreline API Routes
+app.use("/api/shoreline", shorelineRoutes);
 
 // Root route for basic health check (matches original behavior largely)
-app.get('/', (req, res) => {
-    res.send('Franklin Conservation Backend Running');
+app.get("/", (req, res) => {
+  res.send("Franklin Conservation Backend Running");
 });
 
 export default app;
