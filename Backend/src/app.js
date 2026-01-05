@@ -6,6 +6,8 @@ import turtlesRoutes from './modules/turtles/turtles.routes.js';
 import nestsRoutes from './modules/nests/nests.routes.js';
 import usersRoutes from './modules/users/users.routes.js';
 import { streamingService } from './modules/streaming/streaming.service.js';
+import { connectDB } from './config/db.js';
+import detectionsRoutes from './modules/detections/detections.routes.js';
 
 const app = express();
 
@@ -13,11 +15,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Initialize Database
+connectDB();
+
 // Initialize Services
-streamingService.startAllCameras();
+// streamingService.startAllCameras(); // Disabled for now as it was causing RTSP issues
 
 // Static Routes (Streaming)
-// Serving the streams directory directly as before to maintain frontend compatibility
 app.use('/streams', express.static(config.streamDir, {
     setHeaders(res) {
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -29,10 +33,11 @@ app.use('/api/streaming', streamingRoutes);
 app.use('/api/turtles', turtlesRoutes);
 app.use('/api/nests', nestsRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/detections', detectionsRoutes);
 
-// Root route for basic health check (matches original behavior largely)
+// Root route
 app.get('/', (req, res) => {
-    res.send('Franklin Conservation Backend Running');
+    res.send('Franklin Conservation Backend Running (Port 5000)');
 });
 
 export default app;

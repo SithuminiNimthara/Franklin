@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Video, AlertTriangle, MapPin, Maximize2, Eye } from 'lucide-react';
+import { Video, AlertTriangle, MapPin, Maximize2, Eye, Download } from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import BeachMap from '../../shared/components/maps/BeachMap';
 import HlsPlayer from '../../shared/components/media/HlsPlayer';
@@ -10,6 +10,7 @@ import SimulationUpload from './SimulationUpload';
 export default function NestMonitoringPage() {
   const [simulationData, setSimulationData] = useState(null);
   const [simulationEntities, setSimulationEntities] = useState(null);
+  const [detectionHistory, setDetectionHistory] = useState([]);
   const videoRef = useRef(null);
 
   const videoFeeds = [
@@ -19,37 +20,134 @@ export default function NestMonitoringPage() {
     { id: 1, zone: 'Beach Zone D', status: 'active', alerts: 0, nests: 7 },
   ];
 
-  const handleSimulationComplete = (data) => {
-    setSimulationData(data);
+  const fetchHistory = () => {
+    fetch('http://localhost:5000/api/detections')
+      .then(res => res.json())
+      .then(res => {
+        if (res.success) {
+          setDetectionHistory(res.data);
+        }
+      })
+      .catch(err => console.error("Failed to load history", err));
   };
+
+  // Fetch existing detections on load
+  React.useEffect(() => {
+    fetchHistory();
+  }, [simulationData]);
+
+  const handleSimulationComplete = async (data) => {
+    setSimulationData(data);
+    // Auto-saving of nests is now handled frame-by-frame in handleTimeUpdate 
+    // to ensure precision of the 3-second stationary rule.
+  };
+
+  const saveDetectionToBackend = async (payload) => {
+    try {
+      await fetch('http://localhost:5000/api/detections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      fetchHistory(); // Refresh history after saving
+    } catch (e) {
+      console.error("Failed to save detection", e);
+    }
+  };
+
+  const [confirmedNests, setConfirmedNests] = useState([]);
+  const confirmedNestsRef = useRef([]);
 
   const handleClearSimulation = () => {
     setSimulationData(null);
     setSimulationEntities(null);
+    setConfirmedNests([]);
+    confirmedNestsRef.current = [];
   };
 
   const handleTimeUpdate = () => {
     if (videoRef.current && simulationData && simulationData.data) {
       const time = videoRef.current.currentTime;
-      // Find closest frame (assuming data is sorted by time)
       const frame = simulationData.data.reduce((prev, curr) => {
         return (curr.time <= time) ? curr : prev;
       }, simulationData.data[0]);
 
       if (frame && frame.entities) {
-        const mapped = frame.entities.map((e, idx) => ({
+        let newNestsFound = false;
+        const currentBatch = [...confirmedNestsRef.current];
+
+        frame.entities.forEach(e => {
+          if (e.type === 'nest') {
+            const alreadyExists = currentBatch.some(n =>
+              Math.abs(n.x - e.map_x) < 3 && Math.abs(n.y - e.map_y) < 3
+            );
+            if (!alreadyExists) {
+              const newNest = {
+                id: `nest-confirmed-${Date.now()}-${Math.random()}`,
+                type: 'nest',
+                x: e.map_x,
+                y: e.map_y,
+                label: 'Confirmed Nest',
+                status: 'warning'
+              };
+              currentBatch.push(newNest);
+              newNestsFound = true;
+
+              // Immediately save to MongoDB
+              saveDetectionToBackend({
+                type: 'nest',
+                timestamp: new Date(),
+                location: {
+                  zone: 'Beach Zone A',
+                  coordinates: { x: e.map_x, y: e.map_y }
+                },
+                confidence: e.score,
+                nestStatus: 'warning',
+                details: `Nest confirmed after 3s stationary at (${e.map_x.toFixed(1)}, ${e.map_y.toFixed(1)}). Distance: ${e.distance_m}m.`,
+                videoSource: 'simulation-upload'
+              });
+            }
+          }
+        });
+
+        if (newNestsFound) {
+          confirmedNestsRef.current = currentBatch;
+          setConfirmedNests(currentBatch);
+        }
+
+        const mappedCurrent = frame.entities.map((e, idx) => ({
           id: `sim-${idx}-${e.type}`,
           type: e.type,
           x: e.map_x,
           y: e.map_y,
           label: `${e.type.toUpperCase()} ${(e.score * 100).toFixed(0)}%`,
-          status: 'safe' // Default status
+          status: e.type === 'nest' ? 'warning' : 'safe'
         }));
-        setSimulationEntities(mapped);
+
+        const filteredCurrent = mappedCurrent.filter(e => e.type !== 'nest');
+        setSimulationEntities([...currentBatch, ...filteredCurrent]);
       } else {
-        setSimulationEntities([]);
+        setSimulationEntities(confirmedNestsRef.current);
       }
     }
+  };
+
+  const handleSaveMap = () => {
+    // Simulate saving map state
+    const report = {
+      title: "Beach Nesting Report",
+      timestamp: new Date().toLocaleString(),
+      nestsFound: confirmedNests.length,
+      locations: confirmedNests.map(n => ({ x: n.x, y: n.y }))
+    };
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `nest-report-${Date.now()}.json`;
+    link.click();
+    alert("Map report saved successfully!");
   };
 
   return (
@@ -123,19 +221,36 @@ export default function NestMonitoringPage() {
                     </div>
                   </div>
                   <div className="bg-white p-4 rounded-xl border border-gray-200">
-                    <h4 className="font-semibold text-gray-800 mb-2">Simulation Stats</h4>
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-semibold text-gray-800">Simulation Stats</h4>
+                      <Button
+                        icon={Download}
+                        onClick={handleSaveMap}
+                        className="text-[10px] px-2 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 border-none"
+                      >
+                        Save Report
+                      </Button>
+                    </div>
                     <div className="grid grid-cols-2 gap-4 text-xs text-gray-600">
                       <div>
-                        <p className="font-medium">Current Entities:</p>
-                        <p className="text-lg font-bold text-teal-600">{simulationEntities ? simulationEntities.length : 0}</p>
+                        <p className="font-medium">Confirmed Nests:</p>
+                        <p className="text-lg font-bold text-amber-600">{confirmedNests.length}</p>
                       </div>
                       <div>
-                        <p className="font-medium">Detected Types:</p>
-                        <div className="flex space-x-1 mt-1">
-                          {Array.from(new Set(simulationEntities?.map(e => e.type) || [])).map(t => (
-                            <span key={t} className="px-2 py-0.5 bg-gray-100 rounded-full">{t}</span>
-                          ))}
-                        </div>
+                        <p className="font-medium">Current Entities:</p>
+                        <p className="text-lg font-bold text-teal-600">
+                          {simulationEntities ? simulationEntities.filter(e => e.type !== 'nest').length : 0}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <p className="font-medium text-[10px] uppercase text-gray-400 mb-1">Detected Types:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {Array.from(new Set(simulationEntities?.map(e => e.type) || [])).map(t => (
+                          <span key={t} className={`px-2 py-0.5 rounded-full ${t === 'nest' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100'}`}>
+                            {t}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -229,20 +344,45 @@ export default function NestMonitoringPage() {
 
           <div className="mt-6">
             <DashboardCard title="Detection History" icon={Video} iconColor="text-cyan-600" iconBg="bg-cyan-100">
-              <div className="space-y-3">
-                <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-4 border-l-4 border-teal-500">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">New nest detected</p>
-                      <p className="text-sm text-gray-600 mt-1">Beach Zone C - Camera 3</p>
-                      <p className="text-xs text-gray-500 mt-1">15 minutes ago</p>
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                {detectionHistory.length > 0 ? (
+                  detectionHistory.map((item) => (
+                    <div
+                      key={item._id}
+                      className={`rounded-xl p-4 border-l-4 shadow-sm transition-all hover:shadow-md ${item.type === 'predator' ? 'bg-red-50 border-red-500' :
+                        item.type === 'turtle' ? 'bg-teal-50 border-teal-500' :
+                          item.type === 'human' ? 'bg-amber-50 border-amber-500' :
+                            'bg-blue-50 border-blue-500'
+                        }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-bold text-gray-900 capitalize">
+                            {item.type} Detected
+                          </p>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {item.location?.zone || 'Unknown Zone'} - Cam Position: ({item.location?.coordinates?.x?.toFixed(1)}, {item.location?.coordinates?.y?.toFixed(1)})
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1 flex items-center">
+                            <span className="bg-white/50 px-2 py-0.5 rounded mr-2">
+                              Confidence: {(item.confidence * 100).toFixed(0)}%
+                            </span>
+                            {new Date(item.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${item.type === 'predator' ? 'bg-red-100 text-red-700' : 'bg-teal-100 text-teal-700'
+                          }`}>
+                          {item.videoSource === 'simulation-upload' ? 'SIMULATION' : 'LIVE'}
+                        </span>
+                      </div>
                     </div>
-                    <span className="bg-teal-100 text-teal-700 text-xs font-bold px-3 py-1 rounded-full">
-                      CONFIRMED
-                    </span>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-gray-400">
+                    <Video className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                    <p>No detection records found in MongoDB</p>
                   </div>
-                </div>
-                {/* Other history items omitted for brevity but keeping styling consistent */}
+                )}
               </div>
             </DashboardCard>
           </div>
