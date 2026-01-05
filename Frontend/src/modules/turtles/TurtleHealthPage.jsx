@@ -1,7 +1,48 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Upload, Activity, AlertCircle, CheckCircle, Image, X } from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
+
+function HealthStats() {
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/health/stats')
+      .then(res => res.json())
+      .then(data => setStats(data))
+      .catch(err => console.error("Failed to fetch stats", err));
+  }, []);
+
+  if (!stats) return <p className="text-gray-500">Loading stats...</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+        <p className="text-sm text-gray-600 mb-1">Total Scans (24h)</p>
+        <p className="text-3xl font-bold text-gray-900">{stats.recentScans}</p>
+        <p className="text-xs text-green-600 font-medium mt-1">Real-time Data</p>
+      </div>
+
+      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+        <p className="text-sm text-gray-600 mb-1">Healthy Turtles</p>
+        <p className="text-3xl font-bold text-green-700">{stats.stats.healthy.count}</p>
+        <p className="text-xs text-gray-600 mt-1">{stats.stats.healthy.percentage}% of scans</p>
+      </div>
+
+      <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+        <p className="text-sm text-gray-600 mb-1">FP Cases</p>
+        <p className="text-3xl font-bold text-red-700">{stats.stats.fp.count}</p>
+        <p className="text-xs text-gray-600 mt-1">{stats.stats.fp.percentage}% of scans</p>
+      </div>
+
+      <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+        <p className="text-sm text-gray-600 mb-1">Barnacle Cases</p>
+        <p className="text-3xl font-bold text-amber-700">{stats.stats.barnacles.count}</p>
+        <p className="text-xs text-gray-600 mt-1">{stats.stats.barnacles.percentage}% of scans</p>
+      </div>
+    </div>
+  );
+}
 
 export default function TurtleHealthPage() {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -49,6 +90,22 @@ export default function TurtleHealthPage() {
 
       const data = await response.json();
       setAnalysisResult(data);
+
+      // Save to database
+      try {
+        await fetch('http://localhost:5000/api/health/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            diagnosisClass: data.class,
+            confidence: data.confidence,
+            probabilities: data.probabilities,
+            notes: 'Auto-saved from diagnostics'
+          })
+        });
+      } catch (saveError) {
+        console.error("Failed to save diagnosis to DB", saveError);
+      }
     } catch (error) {
       console.error('Error analyzing image:', error);
       alert('Failed to analyze image. Please ensure the backend is running.');
@@ -207,31 +264,7 @@ export default function TurtleHealthPage() {
             iconColor="text-teal-600"
             iconBg="bg-teal-100"
           >
-            <div className="space-y-4">
-              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-600 mb-1">Total Scans (24h)</p>
-                <p className="text-3xl font-bold text-gray-900">23</p>
-                <p className="text-xs text-green-600 font-medium mt-1">↑ 8 from yesterday</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-600 mb-1">Healthy Turtles</p>
-                <p className="text-3xl font-bold text-green-700">13</p>
-                <p className="text-xs text-gray-600 mt-1">56.5% of scans</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-600 mb-1">FP Cases</p>
-                <p className="text-3xl font-bold text-red-700">3</p>
-                <p className="text-xs text-gray-600 mt-1">13% of scans</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-600 mb-1">Barnacle Cases</p>
-                <p className="text-3xl font-bold text-amber-700">7</p>
-                <p className="text-xs text-gray-600 mt-1">30.4% of scans</p>
-              </div>
-            </div>
+            <HealthStats />
           </DashboardCard>
 
           <DashboardCard

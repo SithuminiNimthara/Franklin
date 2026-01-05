@@ -8,6 +8,7 @@ import usersRoutes from './modules/users/users.routes.js';
 import { streamingService } from './modules/streaming/streaming.service.js';
 import { connectDB } from './config/db.js';
 import detectionsRoutes from './modules/detections/detections.routes.js';
+import healthRoutes from './modules/turtleHealth/health.routes.js';
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use('/api/turtles', turtlesRoutes);
 app.use('/api/nests', nestsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/detections', detectionsRoutes);
+app.use('/api/health', healthRoutes);
 
 // Root route
 app.get('/', (req, res) => {
