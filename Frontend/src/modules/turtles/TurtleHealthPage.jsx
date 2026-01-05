@@ -7,7 +7,7 @@ function HealthStats() {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/health/stats')
+    fetch('http://localhost:5002/api/health/stats')
       .then(res => res.json())
       .then(data => setStats(data))
       .catch(err => console.error("Failed to fetch stats", err));
@@ -93,7 +93,7 @@ export default function TurtleHealthPage() {
 
       // Save to database
       try {
-        await fetch('http://localhost:5000/api/health/save', {
+        await fetch('http://localhost:5002/api/health/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
