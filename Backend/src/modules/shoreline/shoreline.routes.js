@@ -1,5 +1,4 @@
 import { Router } from "express";
-import multer from "multer";
 
 import {
   evaluateOffline,
@@ -12,8 +11,9 @@ import {
   predictProxy,
 } from "./shoreline.controller.js";
 
+import { uploadSingleFile } from "./middlewares/upload.middleware.js";
+
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
 
 // Config
 router.get("/boundary", getBoundary);
@@ -27,8 +27,8 @@ router.delete("/nests/:id", deleteNest);
 // Alerts
 router.get("/alerts", getAlerts);
 
-// Inference
-router.post("/predict", upload.single("file"), predictProxy);
-router.post("/evaluate-offline", upload.single("file"), evaluateOffline);
+// ✅ Inference (multer middleware here)
+router.post("/predict", uploadSingleFile, predictProxy);
+router.post("/evaluate-offline", uploadSingleFile, evaluateOffline);
 
 export default router;

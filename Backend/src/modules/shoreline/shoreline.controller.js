@@ -144,8 +144,19 @@ export async function predictProxy(req, res) {
 /** Evaluate Offline */
 export async function evaluateOffline(req, res) {
   try {
+    console.log("EVAL-OFFLINE content-type:", req.headers["content-type"]);
+    console.log(
+      "EVAL-OFFLINE file:",
+      req.file?.originalname,
+      req.file?.mimetype,
+      req.file?.size
+    );
+
     if (!req.file)
-      return res.status(400).json({ detail: "image file is required" });
+      return res.status(400).json({
+        detail: "image file is required (field name must be 'file' or 'image')",
+        gotContentType: req.headers["content-type"] || null,
+      });
 
     const meta = await sharp(req.file.buffer).metadata();
     const imgW = meta.width || 1920;
@@ -157,7 +168,15 @@ export async function evaluateOffline(req, res) {
       req.file.mimetype || "image/jpeg"
     );
 
+    // ✅ ADD THESE LOGS RIGHT HERE
+    console.log("PYTHON STATUS:", status);
+    console.log("PYTHON BODY:", body);
+
+    // ❗ keep this check AFTER the logs
     if (status !== 200) return res.status(status).json(body);
+
+    console.log("content-type:", req.headers["content-type"]);
+    console.log("req.file:", req.file);
 
     // px -> percent
     const shorelinePx = body.shoreline_points || [];
