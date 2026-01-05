@@ -1,10 +1,11 @@
 import path from 'path';
 
 export const config = {
-    port: process.env.PORT || 8000,
+    port: process.env.PORT || 5000,
+    mongoUri: "mongodb+srv://it22143204_db_user:CPnJ0RFeKTfWRK0a@cluster0.o7txatz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
     streamDir: path.join(process.cwd(), 'streams'),
-    ffmpegPath: 'C:\\Users\\Migara\\Downloads\\ffmpeg-8.0.1-essentials_build\\bin\\ffmpeg.exe',
+    ffmpegPath: '',
     cameras: [
-        { id: 'camera1', rtspUrl: 'rtsp://admin:EDSNNP@IP_Address:554/Streaming/Channels/101' },
+        //{ id: 'camera1', rtspUrl: 'rtsp://admin:EDSNNP@IP_Address:554/Streaming/Channels/101' },
     ]
 };

@@ -10,6 +10,7 @@ import SimulationUpload from './SimulationUpload';
 export default function NestMonitoringPage() {
   const [simulationData, setSimulationData] = useState(null);
   const [simulationEntities, setSimulationEntities] = useState(null);
+  const [detectionHistory, setDetectionHistory] = useState([]);
   const videoRef = useRef(null);
 
   const videoFeeds = [
@@ -19,8 +20,71 @@ export default function NestMonitoringPage() {
     { id: 1, zone: 'Beach Zone D', status: 'active', alerts: 0, nests: 7 },
   ];
 
-  const handleSimulationComplete = (data) => {
+  const fetchHistory = () => {
+    fetch('http://localhost:5000/api/detections')
+      .then(res => res.json())
+      .then(res => {
+        if (res.success) {
+          setDetectionHistory(res.data);
+        }
+      })
+      .catch(err => console.error("Failed to load history", err));
+  };
+
+  // Fetch existing detections on load
+  React.useEffect(() => {
+    fetchHistory();
+  }, [simulationData]);
+
+  const handleSimulationComplete = async (data) => {
     setSimulationData(data);
+
+    // Automatically save detections to MongoDB
+    if (data && data.data) {
+      // We only save a subset or specific frames to avoid thousands of API calls
+      // For demonstration, let's save detections from the FIRST frame that has entities
+      const framesWithEntities = data.data.filter(f => f.entities.length > 0);
+
+      // We can process these in batches or just save the significant events
+      // Here we simulate saving "events" (e.g. every 5 seconds or unique occurances)
+
+      // Simple logic: Save 1 event per detected entity type found in the video
+      const uniqueTypes = new Set();
+      framesWithEntities.forEach(frame => {
+        frame.entities.forEach(entity => {
+          if (!uniqueTypes.has(entity.type)) {
+            uniqueTypes.add(entity.type);
+
+            // Save this detection event
+            saveDetectionToBackend({
+              type: entity.hasNest ? 'nest' : entity.type,
+              timestamp: new Date(),
+              location: {
+                zone: 'Beach Zone A',
+                coordinates: { x: entity.map_x, y: entity.map_y }
+              },
+              confidence: entity.score,
+              nestStatus: entity.hasNest ? 'warning' : 'safe',
+              details: `${entity.type.toUpperCase()} found at ${entity.distance_m}m from camera (${entity.bearing_deg}°). Simulation: ${data.video_url}`,
+              videoSource: 'simulation-upload'
+            });
+          }
+        });
+      });
+    }
+  };
+
+  const saveDetectionToBackend = async (payload) => {
+    try {
+      await fetch('http://localhost:5000/api/detections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      fetchHistory(); // Refresh history after saving
+    } catch (e) {
+      console.error("Failed to save detection", e);
+    }
   };
 
   const handleClearSimulation = () => {
@@ -228,21 +292,46 @@ export default function NestMonitoringPage() {
           </div>
 
           <div className="mt-6">
-            <DashboardCard title="Detection History" icon={Video} iconColor="text-cyan-600" iconBg="bg-cyan-100">
-              <div className="space-y-3">
-                <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-4 border-l-4 border-teal-500">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">New nest detected</p>
-                      <p className="text-sm text-gray-600 mt-1">Beach Zone C - Camera 3</p>
-                      <p className="text-xs text-gray-500 mt-1">15 minutes ago</p>
+            <DashboardCard title="Detection History (MongoDB)" icon={Video} iconColor="text-cyan-600" iconBg="bg-cyan-100">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                {detectionHistory.length > 0 ? (
+                  detectionHistory.map((item) => (
+                    <div
+                      key={item._id}
+                      className={`rounded-xl p-4 border-l-4 shadow-sm transition-all hover:shadow-md ${item.type === 'predator' ? 'bg-red-50 border-red-500' :
+                        item.type === 'turtle' ? 'bg-teal-50 border-teal-500' :
+                          item.type === 'human' ? 'bg-amber-50 border-amber-500' :
+                            'bg-blue-50 border-blue-500'
+                        }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-bold text-gray-900 capitalize">
+                            {item.type} Detected
+                          </p>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {item.location?.zone || 'Unknown Zone'} - Cam Position: ({item.location?.coordinates?.x?.toFixed(1)}, {item.location?.coordinates?.y?.toFixed(1)})
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1 flex items-center">
+                            <span className="bg-white/50 px-2 py-0.5 rounded mr-2">
+                              Confidence: {(item.confidence * 100).toFixed(0)}%
+                            </span>
+                            {new Date(item.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${item.type === 'predator' ? 'bg-red-100 text-red-700' : 'bg-teal-100 text-teal-700'
+                          }`}>
+                          {item.videoSource === 'simulation-upload' ? 'SIMULATION' : 'LIVE'}
+                        </span>
+                      </div>
                     </div>
-                    <span className="bg-teal-100 text-teal-700 text-xs font-bold px-3 py-1 rounded-full">
-                      CONFIRMED
-                    </span>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-gray-400">
+                    <Video className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                    <p>No detection records found in MongoDB</p>
                   </div>
-                </div>
-                {/* Other history items omitted for brevity but keeping styling consistent */}
+                )}
               </div>
             </DashboardCard>
           </div>

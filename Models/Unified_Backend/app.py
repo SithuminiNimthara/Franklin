@@ -95,6 +95,11 @@ async def analyze_video(file: UploadFile = File(...)):
     
     results = []
     
+    # Track stationary objects for nest detection
+    # Format: { 'id': [x, y, first_seen_time, last_seen_time, count] }
+    STATIONARY_THRESHOLD = 2.0 # seconds to be considered a nest
+    MOVEMENT_THRESHOLD = 5.0 # percentage of map movement allowed
+    
     # Process every 5th frame for speed
     step = 5
     
@@ -193,6 +198,23 @@ async def analyze_video(file: UploadFile = File(...)):
                         break
                 if keep:
                     final_dets.append(det)
+
+            # Add Spatial Metadata (Location compared to camera)
+            # Assuming camera is at [50, 100] (mid-bottom of map area)
+            cam_x, cam_y = 50.0, 100.0
+            
+            for d in final_dets:
+                dx = d['map_x'] - cam_x
+                dy = d['map_y'] - cam_y
+                dist = math.sqrt(dx**2 + dy**2)
+                # Map 0-100 units to 0-15 meters as per user's 15m radius
+                d['distance_m'] = round((dist / 100.0) * 15.0, 2)
+                d['bearing_deg'] = round(math.degrees(math.atan2(dx, -dy)), 1)
+                
+                # Simple logic for 'nest' categorization: 
+                # If it's a turtle model detection, we treat it as a potential nest event
+                if d['type'] == 'turtle' and d['score'] > 0.7:
+                     d['hasNest'] = True
 
             results.append({
                 "time": timestamp,
