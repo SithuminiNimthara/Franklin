@@ -21,7 +21,7 @@ export default function NestMonitoringPage() {
   ];
 
   const fetchHistory = () => {
-    fetch('http://localhost:5000/api/detections')
+    fetch('http://localhost:5002/api/detections')
       .then(res => res.json())
       .then(res => {
         if (res.success) {
@@ -44,7 +44,7 @@ export default function NestMonitoringPage() {
 
   const saveDetectionToBackend = async (payload) => {
     try {
-      await fetch('http://localhost:5000/api/detections', {
+      await fetch('http://localhost:5002/api/detections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
