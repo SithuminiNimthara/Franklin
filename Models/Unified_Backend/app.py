@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from ultralytics import YOLO
 import cv2
+import cv2
 import numpy as np
 
 app = FastAPI()
@@ -71,6 +72,7 @@ try:
     ensure_models()
 except Exception as e:
     print(f"Setup error: {e}")
+
 
 @app.post("/analyze")
 async def analyze_video(file: UploadFile = File(...)):
@@ -215,6 +217,7 @@ async def get_content(filename: str):
     if os.path.exists(path):
         return FileResponse(path)
     raise HTTPException(status_code=404)
+
 
 if __name__ == "__main__":
     import uvicorn
