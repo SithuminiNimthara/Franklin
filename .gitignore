@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# AI Model Files
+best.pt
+*.pt
+
+# Video Data
+test_videos/
+*.MOV
+*.mp4
+
+
