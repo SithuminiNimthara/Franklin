@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { MapPin, Users, Dog, Turtle, AlertTriangle } from 'lucide-react';
 
-export default function BeachMap() {
-  const [entities, setEntities] = useState([
+export default function BeachMap({ simulationEntities }) {
+  const [internalEntities, setInternalEntities] = useState([
     { id: 'nest-1', type: 'nest', x: 25, y: 40, status: 'safe', label: 'Nest #234' },
     { id: 'nest-2', type: 'nest', x: 45, y: 55, status: 'warning', label: 'Nest #189' },
     { id: 'nest-3', type: 'nest', x: 65, y: 35, status: 'safe', label: 'Nest #156' },
@@ -16,9 +16,13 @@ export default function BeachMap() {
     { id: 'turtle-2', type: 'turtle', x: 60, y: 65, label: 'Nesting female' },
   ]);
 
+  const entities = simulationEntities || internalEntities;
+
   useEffect(() => {
+    if (simulationEntities) return;
+
     const interval = setInterval(() => {
-      setEntities((prev) =>
+      setInternalEntities((prev) =>
         prev.map((entity) => {
           if (entity.type === 'human' || entity.type === 'predator') {
             return {
@@ -33,7 +37,7 @@ export default function BeachMap() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [simulationEntities]);
 
   const getEntityIcon = (type) => {
     switch (type) {

@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 
 # ---------- CONFIG ----------
-MODEL_PATH = "models/best.pt"      # <--- point to your trained .pt file
+MODEL_PATH = "models/turtle.pt"      # <--- point to your trained .pt file
 OUTPUT_DIR = "outputs"             # where annotated videos & reports are saved
 FRAME_STEP = 1                     # process every Nth frame (1 = every frame). Increase to speed up.
 TARGET_CLASS_NAMES = ["turtle"]    # index -> class name (adjust if you have >1 class)

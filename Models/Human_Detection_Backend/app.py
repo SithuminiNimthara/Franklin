@@ -7,7 +7,7 @@ import cv2
 
 app = FastAPI()
 
-MODEL_PATH = "models/yolov8n.pt"
+MODEL_PATH = "models/human.pt"
 UPLOAD_DIR = "uploads"
 OUTPUT_DIR = "outputs"
 
