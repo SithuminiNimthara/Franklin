@@ -32,9 +32,8 @@ export async function getBoundary() {
   const res = await fetch(`${API_BASE}/api/shoreline/boundary`);
   const { json, text } = await safeBody(res);
 
-  if (!res.ok) {
+  if (!res.ok)
     throw new Error(json?.detail || text || "Failed to load boundary");
-  }
   return json;
 }
 
@@ -45,9 +44,7 @@ export async function getNests() {
   const res = await fetch(`${API_BASE}/api/shoreline/nests`);
   const { json, text } = await safeBody(res);
 
-  if (!res.ok) {
-    throw new Error(json?.detail || text || "Failed to load nests");
-  }
+  if (!res.ok) throw new Error(json?.detail || text || "Failed to load nests");
   return json;
 }
 
@@ -58,14 +55,12 @@ export async function getAlerts() {
   const res = await fetch(`${API_BASE}/api/shoreline/alerts`);
   const { json, text } = await safeBody(res);
 
-  if (!res.ok) {
-    throw new Error(json?.detail || text || "Failed to load alerts");
-  }
+  if (!res.ok) throw new Error(json?.detail || text || "Failed to load alerts");
   return json;
 }
 
 // ---------------------
-// Offline Evaluation
+// Offline Evaluation (IMAGE)
 // ---------------------
 export async function evaluateOffline(file, bufferPct = 3) {
   const form = new FormData();
@@ -86,6 +81,53 @@ export async function evaluateOffline(file, bufferPct = 3) {
   if (!res.ok) {
     console.error("evaluateOffline failed:", res.status, text);
     throw new Error(json?.detail || text || "Offline evaluation failed");
+  }
+
+  return json;
+}
+
+// ---------------------
+// Video Prediction (VIDEO UPLOAD)
+// ---------------------
+export async function predictVideo(file) {
+  const form = new FormData();
+
+  // ✅ MUST be "file" (matches multer)
+  form.append("file", file, file.name);
+
+  const url = `${API_BASE}/api/shoreline/predict-video`;
+  console.log("POST:", url);
+
+  const res = await fetch(url, {
+    method: "POST",
+    body: form,
+  });
+
+  const { json, text } = await safeBody(res);
+
+  if (!res.ok) {
+    console.error("predictVideo failed:", res.status, text);
+    throw new Error(json?.detail || text || "Video prediction failed");
+  }
+
+  return json;
+}
+
+// ---------------------
+// Demo Video Prediction (NO UPLOAD)
+// ---------------------
+export async function predictDemoVideo(name = "shoreline_demo.mp4") {
+  const url = `${API_BASE}/api/shoreline/predict-video-demo?name=${encodeURIComponent(
+    name
+  )}`;
+  console.log("GET:", url);
+
+  const res = await fetch(url);
+  const { json, text } = await safeBody(res);
+
+  if (!res.ok) {
+    console.error("predictDemoVideo failed:", res.status, text);
+    throw new Error(json?.detail || text || "Demo video prediction failed");
   }
 
   return json;

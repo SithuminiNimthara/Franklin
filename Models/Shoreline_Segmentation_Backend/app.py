@@ -2,6 +2,7 @@
 import os
 import cv2
 import numpy as np
+from tempfile import NamedTemporaryFile
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +12,7 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 from models.shoreline.model import ShorelineModel, Settings
-from models.shoreline.schemas import Prediction, Health
+from models.shoreline.schemas import Health  # ✅ Prediction schema likely needs update for mask
 
 load_dotenv()
 
@@ -78,7 +79,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 def _load():
     global model, model_loaded
 
-    # Helpful startup logs
     print("[startup] MODEL_PATH =", settings.model_path)
     print("[startup] DEVICE     =", settings.device)
 
@@ -103,6 +103,10 @@ def health():
 
 
 def compute_risk(points: list[dict], img_h: int) -> tuple[str, list[str]]:
+    """
+    Simple demo risk based on how 'inland' the shoreline is in the image.
+    Adjust thresholds to match your camera angle.
+    """
     if not points:
         return "medium", ["No shoreline detected; using conservative risk."]
 
@@ -111,6 +115,8 @@ def compute_risk(points: list[dict], img_h: int) -> tuple[str, list[str]]:
         return "medium", ["Invalid shoreline points."]
 
     avg_y = float(np.mean(ys))
+
+    # NOTE: y increases downward (top=0). Smaller y => higher up in image.
     if avg_y < img_h * 0.35:
         return "high", ["Shoreline detected closer inland (high runup)."]
     if avg_y < img_h * 0.55:
@@ -118,31 +124,29 @@ def compute_risk(points: list[dict], img_h: int) -> tuple[str, list[str]]:
     return "low", ["Shoreline detected closer to sea (low runup)."]
 
 
-@app.post("/predict", response_model=Prediction)
+# ✅ NOTE:
+# You previously had response_model=Prediction.
+# After adding mask_png_b64, your Prediction schema must include it,
+# OR remove response_model to avoid FastAPI validation errors.
+@app.post("/predict")
 async def predict(file: UploadFile = File(...)):
-    # ✅ This line confirms FastAPI parsed multipart successfully
     print("[/predict] got file:", file.filename, file.content_type)
 
     if not model_loaded or model is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Model not loaded. Check MODEL_PATH.",
-        )
+        raise HTTPException(status_code=503, detail="Model not loaded. Check MODEL_PATH.")
 
-    # Read file bytes
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file received.")
 
-    # Decode as image
     img_array = np.frombuffer(content, np.uint8)
     bgr = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
     if bgr is None:
         raise HTTPException(status_code=400, detail="Invalid image.")
 
-    # Inference
     try:
-        shoreline_points, shoreline_conf = model.predict(bgr)
+        # ✅ UPDATED: model now returns (points, conf, mask_png_b64)
+        shoreline_points, shoreline_conf, mask_png_b64 = model.predict(bgr)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
 
@@ -150,7 +154,116 @@ async def predict(file: UploadFile = File(...)):
 
     return {
         "shoreline_points": shoreline_points,
-        "shoreline_conf": shoreline_conf,
+        "shoreline_conf": float(shoreline_conf),
         "risk_level": risk_level,
         "notes": notes,
+        # ✅ NEW: base64 PNG mask for Colab-like overlay
+        "mask_png_b64": mask_png_b64,
+        # ✅ helpful to frontend if needed
+        "image": {"w": int(bgr.shape[1]), "h": int(bgr.shape[0])},
     }
+
+
+@app.post("/predict-video")
+async def predict_video(file: UploadFile = File(...)):
+    """
+    Upload an mp4 (or similar) and get shoreline points + mask over time.
+    Returns frames=[{t, shoreline_points, shoreline_conf, mask_png_b64, risk_level, notes, image{w,h}}]
+
+    Sampling defaults:
+      - process about 2 frames per second (fps//2)
+      - max 300 sampled frames (safety)
+    """
+    print("[/predict-video] got file:", file.filename, file.content_type)
+
+    if not model_loaded or model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded. Check MODEL_PATH.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file received.")
+
+    # Choose suffix by content type / filename (helps VideoCapture sometimes)
+    suffix = ".mp4"
+    if file.filename and "." in file.filename:
+        suffix = "." + file.filename.split(".")[-1].lower()
+
+    tmp_path = None
+    try:
+        # Save to temp file because cv2.VideoCapture works best with file paths
+        with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        cap = cv2.VideoCapture(tmp_path)
+        if not cap.isOpened():
+            raise HTTPException(status_code=400, detail="Invalid video or unsupported codec.")
+
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+
+        # process ~2 frames per second
+        sample_every = max(1, int(fps // 2))
+
+        frames_out = []
+        idx = 0
+
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+
+            if idx % sample_every == 0:
+                img_h, img_w = frame.shape[:2]
+
+                try:
+                    # ✅ UPDATED: model returns mask for overlay
+                    shoreline_points, shoreline_conf, mask_png_b64 = model.predict(frame)
+                    risk_level, notes = compute_risk(shoreline_points, img_h)
+                except Exception as e:
+                    shoreline_points, shoreline_conf, mask_png_b64 = [], 0.0, ""
+                    risk_level, notes = "medium", [f"Inference error at frame {idx}: {str(e)}"]
+
+                t = idx / float(fps if fps > 0 else 25.0)
+
+                frames_out.append(
+                    {
+                        "t": float(t),
+                        "shoreline_points": shoreline_points,  # PIXELS (polyline)
+                        "shoreline_conf": float(shoreline_conf),
+                        # ✅ NEW: mask overlay (base64 PNG)
+                        "mask_png_b64": mask_png_b64,
+                        "risk_level": risk_level,
+                        "notes": notes,
+                        "image": {"w": int(img_w), "h": int(img_h)},
+                        "frame_index": int(idx),
+                    }
+                )
+
+                # Safety cap so huge videos don't overload response
+                if len(frames_out) >= 300:
+                    break
+
+            idx += 1
+
+        cap.release()
+
+        return {
+            "mode": "video",
+            "video": {
+                "filename": file.filename,
+                "content_type": file.content_type,
+            },
+            "fps": float(fps),
+            "total_frames": int(total_frames),
+            "sample_every": int(sample_every),
+            "frames": frames_out,
+        }
+
+    finally:
+        # cleanup temp file
+        try:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass

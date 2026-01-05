@@ -1,4 +1,8 @@
+// shoreline.controller.js
 import sharp from "sharp";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import { readJson, writeJson, nowIso, ensureDir } from "./utils/file.util.js";
 import { clamp } from "./utils/geo.util.js";
@@ -20,6 +24,18 @@ import {
   NESTS_FILE,
   ALERTS_FILE,
 } from "./config/paths.js";
+
+// ✅ python base url
+const PY_INFER_URL = process.env.PY_INFER_URL || "http://localhost:9000";
+
+// ✅ resolve this module directory (ESM-safe)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ demo video folder inside shoreline module
+// Put demo videos here:
+// backend/src/modules/shoreline/data/demo_videos/shoreline_demo.mp4
+const DEMO_VIDEO_DIR = path.join(__dirname, "data", "demo_videos");
 
 /** Bootstrap defaults */
 function ensureDefaults() {
@@ -123,7 +139,7 @@ export function getAlerts(req, res) {
   res.json(alerts);
 }
 
-/** Predict proxy */
+/** Predict proxy (IMAGE) */
 export async function predictProxy(req, res) {
   try {
     if (!req.file) return res.status(400).json({ detail: "file is required" });
@@ -141,22 +157,81 @@ export async function predictProxy(req, res) {
   }
 }
 
-/** Evaluate Offline */
+/** Predict VIDEO proxy (UPLOAD) */
+export async function predictVideoProxy(req, res) {
+  try {
+    if (!req.file) return res.status(400).json({ detail: "file is required" });
+
+    const form = new FormData();
+    const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
+    form.append("file", blob, req.file.originalname || "video.mp4");
+
+    const pyRes = await fetch(`${PY_INFER_URL}/predict-video`, {
+      method: "POST",
+      body: form,
+    });
+
+    const text = await pyRes.text();
+    let json = null;
+    try {
+      json = JSON.parse(text);
+    } catch {}
+
+    return res.status(pyRes.status).json(json ?? { detail: text });
+  } catch (e) {
+    console.error("predictVideoProxy failed:", e);
+    return res.status(500).json({ detail: "Video proxy inference failed" });
+  }
+}
+
+/** ✅ Predict VIDEO DEMO (NO UPLOAD) */
+export async function predictVideoDemo(req, res) {
+  try {
+    // default demo name
+    const name = String(req.query.name || "shoreline_demo.mp4");
+
+    const videoPath = path.join(DEMO_VIDEO_DIR, name);
+
+    if (!fs.existsSync(videoPath)) {
+      return res.status(404).json({
+        detail: `Demo video not found: ${name}`,
+        expectedPath: videoPath,
+      });
+    }
+
+    const buffer = fs.readFileSync(videoPath);
+
+    const form = new FormData();
+    const blob = new Blob([buffer], { type: "video/mp4" });
+    form.append("file", blob, name);
+
+    const pyRes = await fetch(`${PY_INFER_URL}/predict-video`, {
+      method: "POST",
+      body: form,
+    });
+
+    const text = await pyRes.text();
+    let json = null;
+    try {
+      json = JSON.parse(text);
+    } catch {}
+
+    return res.status(pyRes.status).json(json ?? { detail: text });
+  } catch (e) {
+    console.error("predictVideoDemo failed:", e);
+    return res.status(500).json({ detail: "Demo video inference failed" });
+  }
+}
+
+/** Evaluate Offline (IMAGE) */
 export async function evaluateOffline(req, res) {
   try {
-    console.log("EVAL-OFFLINE content-type:", req.headers["content-type"]);
-    console.log(
-      "EVAL-OFFLINE file:",
-      req.file?.originalname,
-      req.file?.mimetype,
-      req.file?.size
-    );
-
-    if (!req.file)
+    if (!req.file) {
       return res.status(400).json({
-        detail: "image file is required (field name must be 'file' or 'image')",
+        detail: "image file is required (field name must be 'file')",
         gotContentType: req.headers["content-type"] || null,
       });
+    }
 
     const meta = await sharp(req.file.buffer).metadata();
     const imgW = meta.width || 1920;
@@ -168,15 +243,7 @@ export async function evaluateOffline(req, res) {
       req.file.mimetype || "image/jpeg"
     );
 
-    // ✅ ADD THESE LOGS RIGHT HERE
-    console.log("PYTHON STATUS:", status);
-    console.log("PYTHON BODY:", body);
-
-    // ❗ keep this check AFTER the logs
     if (status !== 200) return res.status(status).json(body);
-
-    console.log("content-type:", req.headers["content-type"]);
-    console.log("req.file:", req.file);
 
     // px -> percent
     const shorelinePx = body.shoreline_points || [];

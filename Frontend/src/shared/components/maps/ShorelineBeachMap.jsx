@@ -1,9 +1,10 @@
+// ShorelineBeachMap.jsx
 import React from "react";
 
 /**
- * boundary: [{x:0..100,y:0..100},...]
+ * boundary:  [{x:0..100,y:0..100},...]
  * shoreline: [{x:0..100,y:0..100},...]
- * nests: [{id,x,y,zone,status,distanceToShoreline?},...]
+ * nests:     [{id,x,y,zone,status,distanceToShoreline?},...]
  */
 
 function nestColor(status) {
@@ -17,8 +18,10 @@ export default function ShorelineBeachMap({
   boundary = [],
   shoreline = [],
   nests = [],
+  crossedBoundary = false, // ✅ NEW prop
 }) {
-  const riskLevel = nests.some((n) => n.status === "danger") ? "high" : "low";
+  const nestDanger = nests.some((n) => n.status === "danger");
+  const riskLevel = crossedBoundary || nestDanger ? "high" : "low";
 
   const boundaryPoints = boundary.length
     ? boundary.map((p) => `${p.x},${p.y}`).join(" ")

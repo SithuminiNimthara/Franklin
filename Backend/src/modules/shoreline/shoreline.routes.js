@@ -9,6 +9,8 @@ import {
   deleteNest,
   getAlerts,
   predictProxy,
+  predictVideoProxy,
+  predictVideoDemo, // ✅ NEW
 } from "./shoreline.controller.js";
 
 import { uploadSingleFile } from "./middlewares/upload.middleware.js";
@@ -27,8 +29,14 @@ router.delete("/nests/:id", deleteNest);
 // Alerts
 router.get("/alerts", getAlerts);
 
-// ✅ Inference (multer middleware here)
+//  Inference
 router.post("/predict", uploadSingleFile, predictProxy);
 router.post("/evaluate-offline", uploadSingleFile, evaluateOffline);
+
+// Upload video inference (still supported)
+router.post("/predict-video", uploadSingleFile, predictVideoProxy);
+
+//  NEW: demo video inference (no upload)
+router.get("/predict-video-demo", predictVideoDemo);
 
 export default router;
