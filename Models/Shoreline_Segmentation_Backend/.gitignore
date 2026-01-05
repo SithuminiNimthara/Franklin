@@ -1,0 +1,29 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+
+# Virtual Environments
+venv/
+.env/
+*.env
+.env.*
+.venv/
+
+
+# =========================
+# Python ML / Model Files
+# =========================
+*.h5
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.joblib
+*.pkl
+
+requirements.txt
