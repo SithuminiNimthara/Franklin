@@ -1,8 +1,66 @@
-import { Upload, Activity, AlertCircle, CheckCircle, Image } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Upload, Activity, AlertCircle, CheckCircle, Image, X } from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 
 export default function TurtleHealthPage() {
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      setAnalysisResult(null);
+    }
+  };
+
+  const clearSelection = (e) => {
+    e.stopPropagation();
+    setSelectedImage(null);
+    setPreviewUrl(null);
+    setAnalysisResult(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const analyzeImage = async () => {
+    if (!selectedImage) return;
+
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+
+    const formData = new FormData();
+    formData.append('file', selectedImage);
+
+    try {
+      // Use dedicated Disease Service on 8001
+      const response = await fetch('http://localhost:8001/classify', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Analysis failed');
+      }
+
+      const data = await response.json();
+      setAnalysisResult(data);
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      alert('Failed to analyze image. Please ensure the backend is running.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const getConfidenceLevel = (conf) => {
+    return (conf * 100).toFixed(1) + '%';
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -18,93 +76,126 @@ export default function TurtleHealthPage() {
             iconColor="text-blue-600"
             iconBg="bg-blue-100"
           >
-            <div className="border-4 border-dashed border-gray-300 rounded-2xl p-12 text-center hover:border-blue-400 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 transition-all duration-300 cursor-pointer bg-gradient-to-br from-gray-50 to-blue-50/30 group">
-              <div className="relative inline-block mb-4">
-                <div className="absolute inset-0 bg-blue-400 rounded-full blur-xl opacity-0 group-hover:opacity-30 transition-opacity"></div>
-                <Image className="h-20 w-20 text-gray-400 group-hover:text-blue-500 transition-colors relative" />
-              </div>
-              <p className="text-lg font-semibold text-gray-700 mb-2">
-                Drop image here or click to upload
-              </p>
-              <p className="text-sm text-gray-500 mb-4">
-                Supports JPG, PNG, HEIC formats (Max 10MB)
-              </p>
-              <Button className="px-8 py-3 shadow-lg hover:shadow-2xl">
-                Select Image
-              </Button>
-            </div>
+            <div className="space-y-6">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                className="hidden"
+                accept="image/jpeg,image/png,image/heic"
+              />
 
-            <div className="mt-6 space-y-4">
-              <h3 className="text-md font-semibold text-gray-800">Recent Diagnoses</h3>
-
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-gradient-to-br from-green-500 to-emerald-500 p-2.5 rounded-xl shadow-md">
-                      <CheckCircle className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">Turtle #T-127 - Healthy</p>
-                      <p className="text-sm text-gray-600">Scanned 10 minutes ago</p>
-                    </div>
+              {!previewUrl ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-4 border-dashed border-gray-300 rounded-2xl p-12 text-center hover:border-blue-400 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 transition-all duration-300 cursor-pointer bg-gradient-to-br from-gray-50 to-blue-50/30 group"
+                >
+                  <div className="relative inline-block mb-4">
+                    <div className="absolute inset-0 bg-blue-400 rounded-full blur-xl opacity-0 group-hover:opacity-30 transition-opacity"></div>
+                    <Image className="h-20 w-20 text-gray-400 group-hover:text-blue-500 transition-colors relative" />
                   </div>
-                  <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">
-                    HEALTHY
-                  </span>
-                </div>
-                <div className="mt-3 text-sm text-gray-700">
-                  <p className="font-medium">Assessment: No signs of disease detected</p>
-                  <p className="text-xs text-gray-600 mt-1">Confidence: 98.5%</p>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-4 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-gradient-to-br from-red-500 to-rose-500 p-2.5 rounded-xl shadow-md">
-                      <AlertCircle className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">Turtle #T-089 - FP Detected</p>
-                      <p className="text-sm text-gray-600">Scanned 1 hour ago</p>
-                    </div>
-                  </div>
-                  <span className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
-                    FP POSITIVE
-                  </span>
-                </div>
-                <div className="mt-3 text-sm text-gray-700">
-                  <p className="font-medium">Assessment: Fibropapillomatosis tumors detected</p>
-                  <p className="text-xs text-gray-600 mt-1">Confidence: 94.2%</p>
-                  <Button variant="danger" className="mt-3 px-4 py-2 text-sm">
-                    View Treatment Plan
+                  <p className="text-lg font-semibold text-gray-700 mb-2">
+                    Drop image here or click to upload
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Supports JPG, PNG, HEIC formats (Max 10MB)
+                  </p>
+                  <Button className="px-8 py-3 shadow-lg hover:shadow-2xl">
+                    Select Image
                   </Button>
                 </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-4 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-2.5 rounded-xl shadow-md">
-                      <AlertCircle className="h-6 w-6 text-white" />
+              ) : (
+                <div className="relative rounded-2xl overflow-hidden shadow-lg bg-gray-900 group">
+                  <img src={previewUrl} alt="Preview" className="w-full h-80 object-contain bg-gray-900" />
+                  <div className="absolute top-4 right-4">
+                    <button onClick={clearSelection} className="bg-white/20 hover:bg-white/40 backdrop-blur-md p-2 rounded-full text-white transition-all">
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  {!analysisResult && !isAnalyzing && (
+                    <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black/80 to-transparent flex justify-center">
+                      <Button onClick={analyzeImage} className="px-8 py-3 shadow-xl hover:scale-105 transition-transform bg-blue-600 hover:bg-blue-700 border-none text-white">
+                        Run Diagnosis
+                      </Button>
                     </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">Turtle #T-065 - Barnacle Infestation</p>
-                      <p className="text-sm text-gray-600">Scanned 3 hours ago</p>
+                  )}
+                  {isAnalyzing && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center flex-col">
+                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-400 border-t-transparent mb-4"></div>
+                      <p className="text-white font-semibold animate-pulse">Analyzing Image Patterns...</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {analysisResult && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <h3 className="text-md font-semibold text-gray-800 mb-4">Diagnosis Results</h3>
+
+                  <div className={`border-2 rounded-xl p-6 ${analysisResult.class === 'healthy'
+                    ? 'bg-green-50 border-green-200'
+                    : analysisResult.class === 'fp'
+                      ? 'bg-red-50 border-red-200'
+                      : 'bg-amber-50 border-amber-200'
+                    }`}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className={`p-4 rounded-xl shadow-md ${analysisResult.class === 'healthy' ? 'bg-green-500' :
+                          analysisResult.class === 'fp' ? 'bg-red-500' : 'bg-amber-500'
+                          }`}>
+                          {analysisResult.class === 'healthy' ? (
+                            <CheckCircle className="h-8 w-8 text-white" />
+                          ) : (
+                            <AlertCircle className="h-8 w-8 text-white" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-gray-900 capitalize">
+                            Result: {analysisResult.class === 'fp' ? 'Fibropapillomatosis (FP)' : analysisResult.class}
+                          </p>
+                          <p className="text-gray-600">
+                            Confidence: <span className="font-semibold">{getConfidenceLevel(analysisResult.confidence)}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wide ${analysisResult.class === 'healthy' ? 'bg-green-200 text-green-800' :
+                        analysisResult.class === 'fp' ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'
+                        }`}>
+                        {analysisResult.class}
+                      </span>
+                    </div>
+
+                    <div className="mt-6">
+                      <p className="font-medium text-gray-800 mb-2">Class Potentials (Probabilities):</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {Object.entries(analysisResult.probabilities || {}).map(([key, val]) => (
+                          <div key={key} className="bg-white/60 p-3 rounded-lg">
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="capitalize font-medium text-gray-700">{key}</span>
+                              <span className="text-gray-500">{(val * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${key === 'healthy' ? 'bg-green-500' :
+                                  key === 'fp' ? 'bg-red-500' : 'bg-amber-500'
+                                  }`}
+                                style={{ width: `${val * 100}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-gray-200/50">
+                      <p className="text-xs text-gray-500">
+                        Note: This diagnosis is based on a Few-Shot Learning Model (Protonet-Conv4).
+                        If the results are inconsistent, please ensure the system has been calibrated with the latest support set.
+                      </p>
                     </div>
                   </div>
-                  <span className="bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1 rounded-full">
-                    BARNACLES
-                  </span>
                 </div>
-                <div className="mt-3 text-sm text-gray-700">
-                  <p className="font-medium">Assessment: Heavy barnacle coverage detected</p>
-                  <p className="text-xs text-gray-600 mt-1">Confidence: 96.8%</p>
-                  <Button variant="warning" className="mt-3 px-4 py-2 text-sm">
-                    Schedule Cleaning
-                  </Button>
-                </div>
-              </div>
+              )}
             </div>
           </DashboardCard>
         </div>
