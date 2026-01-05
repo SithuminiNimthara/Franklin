@@ -1,5 +1,5 @@
 import express from 'express';
-import { createDetection, getDetections, getDetectionsByVideo } from './detections.controller.js';
+import { createDetection, getDetections, getDetectionsByVideo } from '../detections.controller.js'
 
 const router = express.Router();
 
