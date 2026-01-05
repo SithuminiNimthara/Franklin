@@ -52,7 +52,7 @@ export default function TankVideoCard({ tankId, tankLabel }) {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
           </span>
-          <span className="text-white text-xs font-bold tracking-widest">LIVE FEED</span>
+          <span className="text-white text-xs font-bold tracking-widest">Video Footage</span>
         </div>
 
         {/* Connection Status Overlay */}
@@ -68,30 +68,30 @@ export default function TankVideoCard({ tankId, tankLabel }) {
         {/* Header */}
         <div className="mb-8 border-b border-gray-100 pb-6">
           <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">{tankLabel}</h2>
-          <p className="text-gray-500 text-sm mt-1">Real-time AI behavioral analysis</p>
+          <p className="text-gray-500 text-sm mt-1">Real-time AI species detection and behavioral analysis</p>
         </div>
 
         {/* Stats Grid */}
         <div className="space-y-5">
           
           {/* 1. Species Card */}
-          <div className="flex items-center p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all hover:shadow-md">
+          <div className="flex items-center p-4 rounded-2xl border border-black transition-all hover:shadow-md">
             <div className="p-3 bg-white rounded-xl shadow-sm mr-4">
-              <Eye className="w-6 h-6 text-indigo-600" />
+              <Eye className="w-6 h-6 text-green-700" />
             </div>
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Detected Species</p>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Detected Species</p>
               <p className="text-lg font-bold text-gray-800">{data.species}</p>
             </div>
           </div>
 
           {/* 2. Behavior Card */}
-          <div className="flex items-center p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all hover:shadow-md">
+          <div className="flex items-center p-4 rounded-2xl border border-black transition-all hover:shadow-md">
             <div className="p-3 bg-white rounded-xl shadow-sm mr-4">
               <Activity className="w-6 h-6 text-orange-500" />
             </div>
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Current Behavior</p>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Behavior</p>
               <p className="text-lg font-bold text-gray-800">{data.status}</p>
             </div>
           </div>
