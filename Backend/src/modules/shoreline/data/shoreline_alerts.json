@@ -1,0 +1,58 @@
+[
+  {
+    "id": "f75b899ea4ef719b91a9e2b8",
+    "type": "shoreline",
+    "time": "2026-01-06T04:56:28.600Z",
+    "message": "Shoreline crossed boundary line",
+    "riskLevel": "high",
+    "details": {
+      "riskLevel": "high",
+      "boundaryCrossed": true,
+      "nestsAtRisk": []
+    }
+  },
+  {
+    "id": "53b478d40296c19b8f57f031",
+    "type": "shoreline",
+    "time": "2026-01-05T18:07:43.665Z",
+    "message": "Shoreline crossed boundary line",
+    "riskLevel": "high",
+    "details": {
+      "riskLevel": "high",
+      "boundaryCrossed": true,
+      "nestsAtRisk": []
+    }
+  },
+  {
+    "id": "cbce68c977c7b19b8f44ae86",
+    "type": "shoreline",
+    "time": "2026-01-05T17:46:41.670Z",
+    "message": "Shoreline crossed boundary line",
+    "riskLevel": "high",
+    "details": {
+      "riskLevel": "high",
+      "boundaryCrossed": true,
+      "nestsAtRisk": []
+    }
+  },
+  {
+    "id": "cbf10165ac44219b8e585a3f",
+    "type": "shoreline",
+    "time": "2026-01-05T13:28:33.599Z",
+    "message": "Shoreline crossed boundary line",
+    "riskLevel": "high",
+    "details": {
+      "riskLevel": "high",
+      "boundaryCrossed": true,
+      "nestsAtRisk": [
+        {
+          "id": "nest-3",
+          "label": "Nest #201",
+          "x": 80,
+          "y": 60,
+          "distancePct": 2.4400724401686844
+        }
+      ]
+    }
+  }
+]
