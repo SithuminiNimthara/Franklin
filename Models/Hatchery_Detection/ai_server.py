@@ -6,35 +6,37 @@ from flask_cors import CORS
 from ultralytics import YOLO
 from collections import defaultdict, deque
 
-# ---------------- APP SETUP ----------------
+# APP SETUP
 app = Flask(__name__)
 CORS(app)
 
-# ---------------- PATHS ----------------
+# PATHS
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "best.pt")
 VIDEO_DIR = os.path.join(BASE_DIR, "test_videos")
 
-# ---------------- CONFIG ----------------
-# Only one tank now
+# CONFIG
 TANK_CONFIG = {
     "tankA": "IMG_3147.MOV"
 }
 
 PIXELS_PER_CM = 25.0
-SPEED_THRESHOLD = 2.0
 WALL_MARGIN = 100
 
-# ---------------- AI ENGINE ----------------
+# THRESHOLD: 0.5 Body Lengths per Second
+# If moving more than half its body length per second, it's active.
+BL_THRESHOLD = 0.5 
+
+# AI ENGINE
 class VideoController:
     def __init__(self):
-        print("🚀 AI Engine Starting...")
+        print("AI Engine Starting...")
 
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
 
         self.model = YOLO(MODEL_PATH)
-        print("✅ YOLOv8 model loaded")
+        print("YOLOv8 model loaded")
 
         self.states = {
             "tankA": {
@@ -45,11 +47,10 @@ class VideoController:
             }
         }
 
-    # ---------------- STREAM ----------------
+    #  STREAM 
     def generate_frames(self, tank_id):
         filename = TANK_CONFIG.get(tank_id)
-        if not filename:
-             return
+        if not filename: return
 
         video_path = os.path.join(VIDEO_DIR, filename)
         if not os.path.exists(video_path):
@@ -68,24 +69,15 @@ class VideoController:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 continue
 
-            results = self.model.track(
-                frame,
-                persist=True,
-                conf=0.5,
-                tracker="bytetrack.yaml",
-                verbose=False
-            )
+            results = self.model.track(frame, persist=True, conf=0.5, tracker="bytetrack.yaml", verbose=False)
 
             if results and results[0].boxes.id is not None:
                 self._process(results[0], frame, tank_id, safe_zone, fps)
 
             ret, buffer = cv2.imencode(".jpg", frame)
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
-            )
+            yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
 
-    # ---------------- PROCESS ----------------
+    # PROCESS
     def _process(self, result, frame, tank_id, safe_zone, fps):
         boxes = result.boxes.xywh.cpu()
         ids = result.boxes.id.int().cpu().tolist()
@@ -96,61 +88,74 @@ class VideoController:
             x, y, w, h = box
             cx, cy = float(x), float(y)
             species = names[cls]
+            
             history = self.states[tank_id]["history"][tid]
             history.append((cx, cy))
-            status, health, color = self._analyze(history, w, h, cx, cy, safe_zone, fps)
+            
+            # Pass w and h to analyze for body length calculation
+            status, color = self._analyze(history, w, h, cx, cy, safe_zone, fps)
 
             self.states[tank_id].update({
                 "species": species,
                 "status": status,
-                "health": health
+                "health": status 
             })
 
-            # Draw UI on Frame
+            # Draw UI
             x1, y1 = int(x - w/2), int(y - h/2)
             cv2.rectangle(frame, (x1, y1), (int(x+w/2), int(y+h/2)), color, 2)
-            cv2.putText(frame, f"{species} | {status}", (x1, y1 - 10),
+            label = f"{species} | {status}"
+            
+            cv2.putText(frame, label, (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-    # ---------------- BEHAVIOR ----------------
+    #BEHAVIOR (LOGIC UPDATE) 
     def _analyze(self, hist, w, h, cx, cy, safe, fps):
         if len(hist) < 10:
-            return "Analyzing...", "Unknown", (200, 200, 200)
+            return "Analyzing...", (200, 200, 200)
 
-        dist = sum(np.linalg.norm(np.array(hist[i]) - np.array(hist[i-1]))
-                   for i in range(1, len(hist)))
-        speed = (dist / PIXELS_PER_CM) / (len(hist) / fps)
+        # 1. Calculate Speed in cm/s
+        dist_pixels = sum(np.linalg.norm(np.array(hist[i]) - np.array(hist[i-1])) for i in range(1, len(hist)))
+        duration = len(hist) / fps
+        speed_cm_s = (dist_pixels / PIXELS_PER_CM) / duration
 
+        # 2. Calculate Body Lengths per Second (BL/s)
+        # We use the maximum dimension (length) of the bounding box
+        body_len_cm = max(w, h) / PIXELS_PER_CM
+        if body_len_cm < 0.1: body_len_cm = 0.1 # Prevent div/0
+        
+        speed_bl_s = speed_cm_s / body_len_cm
+
+        # 3. Check Position
         at_wall = cx < safe[0] or cx > safe[2] or cy < safe[1] or cy > safe[3]
 
-        if speed > SPEED_THRESHOLD:
-            return "NORMAL", "Healthy", (0, 255, 0)
-        if at_wall:
-            return "WALL INTERACTION", "Fair", (0, 255, 255)
-        return "FLOATER", "Critical", (0, 0, 255)
+        # 4. DECISION LOGIC
+        # Priority A: If moving fast (relative to size) -> HEALTHY
+        if speed_bl_s > BL_THRESHOLD:
+            return "Normal", (0, 255, 0) # Green
 
-# ---------------- INIT ----------------
+        # Priority B: If slow, BUT at the wall -> HEALTHY (Resting)
+        if at_wall:
+            return "Normal", (0, 255, 255) # Cyan/Yellowish (distinct but healthy)
+        # Priority C: Slow AND in the middle -> FLOATER
+        return "Floator", (0, 0, 255) # Red
+
+#INIT & ROUTES 
 engine = VideoController()
 
-# ---------------- ROUTES ----------------
 @app.route("/stream/<tank_id>")
 def stream(tank_id):
-    return Response(engine.generate_frames(tank_id),
-                    mimetype="multipart/x-mixed-replace; boundary=frame")
+    return Response(engine.generate_frames(tank_id), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 @app.route("/data/<tank_id>")
 def data(tank_id):
     state = engine.states.get(tank_id)
-    if not state:
-        return jsonify({"status": "Offline", "health": "Unknown", "species": "Unknown"})
-
-    # Clean JSON response
-    clean_data = {
+    if not state: return jsonify({"status": "Offline"})
+    return jsonify({
         "status": state["status"],
         "health": state["health"],
         "species": state["species"]
-    }
-    return jsonify(clean_data)
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, threaded=True)
