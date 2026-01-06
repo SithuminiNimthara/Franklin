@@ -1,34 +1,34 @@
-import { useState } from 'react';
-import { Bell, User } from 'lucide-react';
-import Navigation from './shared/components/layout/Navigation';
-import AlertsPanel from './shared/components/layout/AlertsPanel';
-import HomePage from './modules/dashboard/HomePage';
-import TurtleHealthPage from './modules/turtles/TurtleHealthPage';
-import NestMonitoringPage from './modules/nests/NestMonitoringPage';
-import ShorelineRiskPage from './modules/shoreline/ShorelineRiskPage';
-import HatcheryPage from './modules/hatchery/HatcheryPage';
-import ReportsPage from './modules/reports/ReportsPage';
-import ProfilePage from './modules/users/ProfilePage';
+import { useState } from "react";
+import { Bell, User } from "lucide-react";
+import Navigation from "./shared/components/layout/Navigation";
+import AlertsPanel from "./shared/components/layout/AlertsPanel";
+import HomePage from "./modules/dashboard/HomePage";
+import TurtleHealthPage from "./modules/turtles/TurtleHealthPage";
+import NestMonitoringPage from "./modules/nests/NestMonitoringPage";
+import ShorelineRiskPage from "./modules/shoreline/ShorelineRiskPage";
+import HatcheryPage from "./modules/hatchery/HatcheryPage";
+import ReportsPage from "./modules/reports/ReportsPage";
+import ProfilePage from "./modules/users/ProfilePage";
 
 function App() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState("home");
   const [alertsOpen, setAlertsOpen] = useState(false);
 
   const renderPage = () => {
     switch (activeTab) {
-      case 'home':
+      case "home":
         return <HomePage />;
-      case 'health':
+      case "health":
         return <TurtleHealthPage />;
-      case 'nests':
+      case "nests":
         return <NestMonitoringPage />;
-      case 'shoreline':
+      case "shoreline":
         return <ShorelineRiskPage />;
-      case 'hatchery':
+      case "hatchery":
         return <HatcheryPage />;
-      case 'reports':
+      case "reports":
         return <ReportsPage />;
-      case 'profile':
+      case "profile":
         return <ProfilePage />;
       default:
         return <HomePage />;
@@ -45,7 +45,7 @@ function App() {
 
       <button
         onClick={() => {
-          setActiveTab('profile');
+          setActiveTab("profile");
         }}
         className="fixed bottom-24 right-8 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white p-4 rounded-full shadow-2xl transition-all duration-200 hover:scale-110 z-40 hidden lg:flex items-center space-x-2"
       >
