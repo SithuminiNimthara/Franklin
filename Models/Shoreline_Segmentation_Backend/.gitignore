@@ -12,15 +12,4 @@ venv/
 .venv/
 
 
-# =========================
-# Python ML / Model Files
-# =========================
-*.h5
-*.pt
-*.pth
-*.onnx
-*.ckpt
-*.joblib
-*.pkl
-
-requirements.txt
+#
