@@ -12,7 +12,7 @@ CORS(app)
 
 # PATHS
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "best.pt")
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'best.pt')
 VIDEO_DIR = os.path.join(BASE_DIR, "test_videos")
 
 # CONFIG
