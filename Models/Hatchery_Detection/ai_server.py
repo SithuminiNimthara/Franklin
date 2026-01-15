@@ -10,14 +10,15 @@ from collections import defaultdict, deque
 app = Flask(__name__)
 CORS(app)
 
+
 # PATHS
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'best.pt')
-VIDEO_DIR = os.path.join(BASE_DIR, "test_videos")
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'best.pt')
+VIDEO_DIR = os.path.join(BASE_DIR, 'test_videos')
 
 # CONFIG
 TANK_CONFIG = {
-    "tankA": "IMG_3147.MOV"
+    "tankA": "IMG_3149.MOV"
 }
 
 PIXELS_PER_CM = 25.0
