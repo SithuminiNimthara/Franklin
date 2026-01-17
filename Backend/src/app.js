@@ -10,6 +10,7 @@ import shorelineRoutes from "./modules/shoreline/shoreline.routes.js";
 import { connectDB } from './config/db.js';
 import detectionsRoutes from './modules/detections/detections.routes.js';
 import healthRoutes from './modules/turtleHealth/health.routes.js';
+import hatcheryRoutes from './modules/hatchery/hatchery.routes.js'; 
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/detections', detectionsRoutes);
 app.use('/api/health', healthRoutes);
 app.use("/api/shoreline", shorelineRoutes);
+app.use("/api/hatchery", hatcheryRoutes);
 
 // Root route
 app.get('/', (req, res) => {
