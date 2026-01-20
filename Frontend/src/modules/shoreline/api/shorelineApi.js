@@ -51,13 +51,13 @@ export async function getNests() {
 // ---------------------
 // Alerts
 // ---------------------
-export async function getAlerts() {
-  const res = await fetch(`${API_BASE}/api/shoreline/alerts`);
-  const { json, text } = await safeBody(res);
+// export async function getAlerts() {
+//   const res = await fetch(`${API_BASE}/api/shoreline/alerts`);
+//   const { json, text } = await safeBody(res);
 
-  if (!res.ok) throw new Error(json?.detail || text || "Failed to load alerts");
-  return json;
-}
+//   if (!res.ok) throw new Error(json?.detail || text || "Failed to load alerts");
+//   return json;
+// }
 
 // ---------------------
 // Offline Evaluation (IMAGE)
@@ -118,7 +118,7 @@ export async function predictVideo(file) {
 // ---------------------
 export async function predictDemoVideo(name = "shoreline_demo.mp4") {
   const url = `${API_BASE}/api/shoreline/predict-video-demo?name=${encodeURIComponent(
-    name
+    name,
   )}`;
   console.log("GET:", url);
 
@@ -130,5 +130,43 @@ export async function predictDemoVideo(name = "shoreline_demo.mp4") {
     throw new Error(json?.detail || text || "Demo video prediction failed");
   }
 
+  return json;
+}
+
+// ---------------------
+// Alerts (MongoDB)
+// ---------------------
+export async function getAlerts(limit = 50, page = 1) {
+  const url = `${API_BASE}/api/shoreline/alerts?limit=${limit}&page=${page}`;
+  const res = await fetch(url);
+  const { json, text } = await safeBody(res);
+
+  if (!res.ok) throw new Error(json?.detail || text || "Failed to load alerts");
+  return json; // { page, limit, total, items }
+}
+
+export async function acknowledgeAlert(id, staff = "Ranger-01") {
+  const url = `${API_BASE}/api/shoreline/alerts/${id}/ack`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ staff }),
+  });
+
+  const { json, text } = await safeBody(res);
+  if (!res.ok) throw new Error(json?.detail || text || "Acknowledge failed");
+  return json;
+}
+
+export async function resolveAlert(id, staff = "Ranger-01") {
+  const url = `${API_BASE}/api/shoreline/alerts/${id}/resolve`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ staff }),
+  });
+
+  const { json, text } = await safeBody(res);
+  if (!res.ok) throw new Error(json?.detail || text || "Resolve failed");
   return json;
 }

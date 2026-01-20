@@ -5,6 +5,7 @@ import { MapPin, AlertTriangle, Upload, Video } from "lucide-react";
 import DashboardCard from "../../shared/components/ui/DashboardCard.jsx";
 import ShorelineBeachMap from "../../shared/components/maps/ShorelineBeachMap.jsx";
 import ShorelineVideoPlayer from "../shoreline/ShorelineVideoPlayer.jsx";
+import ShorelineAlertsPanel from "../shoreline/ShorelineAlertsPanel.jsx";
 
 import {
   getBoundary,
@@ -69,7 +70,7 @@ export default function ShorelineRiskPage() {
           y: item.y,
           zone: item.label,
           status: "safe",
-        }))
+        })),
       );
       setAlerts(a || []);
     } catch (e) {
@@ -161,7 +162,7 @@ export default function ShorelineRiskPage() {
             distanceToShoreline: d,
             status: nestStatusFromDistance(d),
           };
-        })
+        }),
       );
 
       setLastUpdated(new Date().toLocaleTimeString());
@@ -282,6 +283,8 @@ export default function ShorelineRiskPage() {
           nests={nests}
           crossedBoundary={crossedBoundary}
         />
+
+        <ShorelineAlertsPanel staffName="Ranger-01" />
 
         {alerts.length === 0 && (
           <p className="mt-4 text-sm text-gray-500">
