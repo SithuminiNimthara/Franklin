@@ -1,24 +1,16 @@
-import { useRef, useEffect, useState } from "react";
-import { Upload, AlertTriangle, Bell } from "lucide-react";
-import StatSummaryCard from "../../shared/components/ui/StatSummaryCard";
+import { useEffect, useState } from "react";
+import { AlertTriangle, Bell } from "lucide-react";
 import TankVideoCard from "../../shared/components/ui/TankVideoCard";
+import UploadAnalyzer from "../../shared/components/ui/UploadAnalyzer";
 
 export default function HatcheryPage() {
-  const fileInputRef = useRef(null);
+  // ALERTS STATE
   const [alerts, setAlerts] = useState([]);
 
-  // FILE UPLOAD
-  const handleUploadClick = () => fileInputRef.current?.click();
-
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
-    if (file) alert(`Selected file: ${file.name}`);
-  };
-
-  // REAL-TIME ALERT FETCH 
+  // ALERT FETCH
   useEffect(() => {
     const interval = setInterval(() => {
-      fetch("http://localhost:5002/api/hatchery/alerts")
+      fetch("http://localhost:5001/alerts")
         .then((res) => res.json())
         .then(setAlerts)
         .catch(() => setAlerts([]));
@@ -28,89 +20,88 @@ export default function HatcheryPage() {
   }, []);
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto p-4">
+    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto bg-gray-50 min-h-screen">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Hatchery Management
-          </h1>
-          <p className="text-gray-600">
-            AI-based Species Detection & Behavior Monitoring
-          </p>
-        </div>
-
-        <div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept="video/*"
-            className="hidden"
-          />
-          <button
-            onClick={handleUploadClick}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow"
-          >
-            <Upload className="w-5 h-5" />
-            Upload Footage
-          </button>
-        </div>
+      <div className="flex flex-col">
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+          Hatchery Monitoring
+        </h1>
+        <p className="text-gray-500 mt-1">
+          Real-time AI monitoring for species identification and health
+          analysis.
+        </p>
       </div>
 
-      {/* VIDEO */}
-      <TankVideoCard tankId="tankA" tankLabel="Tank A" />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* LEFT COLUMN: Upload & Analysis */}
+        <div className="lg:col-span-8 space-y-8">
+          {/* 1. THE NEW UPLOAD COMPONENT */}
+          <UploadAnalyzer />
 
-      {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <StatSummaryCard
-          value="118"
-          label="Total Hatchlings"
-          colorTheme="blue"
-        />
-        <StatSummaryCard
-          value="98.5%"
-          label="Survival Rate"
-          colorTheme="green"
-        />
-      </div>
-
-      {/* ALERT PANEL */}
-      <div className="bg-white rounded-2xl border p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <AlertTriangle className="w-6 h-6 text-orange-600" />
-          <div>
-            <h3 className="text-lg font-bold">System Alerts</h3>
-            <p className="text-sm text-gray-500">
-              Real-time abnormal behavior & mixed species alerts
-            </p>
+          {/* 2. LIVE FEED */}
+          <div className="bg-white rounded-2xl border shadow-sm p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">
+              Current Tanks
+            </h3>
+            <TankVideoCard tankId="tankA" tankLabel="Tank A - Main Camera" />
           </div>
         </div>
 
-        {alerts.length === 0 ? (
-          <div className="h-40 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed rounded-xl">
-            <Bell className="w-10 h-10 mb-2" />
-            <p>No active alerts</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {alerts.map((alert, idx) => (
-              <div
-                key={idx}
-                className={`p-4 rounded-xl border-l-4 ${
-                  alert.type === "species"
-                    ? "border-orange-500 bg-orange-50"
-                    : "border-red-500 bg-red-50"
-                }`}
-              >
-                <p className="font-semibold text-gray-800">{alert.message}</p>
-                <p className="text-xs text-gray-500">
-                  Tank {alert.tank} • {alert.time}
-                </p>
+        {/* RIGHT COLUMN: Alerts */}
+        <div className="lg:col-span-4">
+          <div className="bg-white rounded-2xl border shadow-sm p-6 sticky top-6">
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-orange-600" />
               </div>
-            ))}
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Live Alerts</h3>
+                <p className="text-xs text-gray-500">Real-time anomalies</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+              {alerts.length === 0 ? (
+                <div className="h-40 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-100 rounded-xl bg-gray-50">
+                  <Bell className="w-8 h-8 mb-2 opacity-50" />
+                  <span className="text-sm">System Normal</span>
+                </div>
+              ) : (
+                alerts.map((alert, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-4 rounded-xl border-l-4 shadow-sm transition-all hover:shadow-md ${
+                      alert.type === "species"
+                        ? "border-orange-500 bg-orange-50/50"
+                        : "border-red-500 bg-red-50/50"
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <span
+                        className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${
+                          alert.type === "species"
+                            ? "bg-orange-200 text-orange-800"
+                            : "bg-red-200 text-red-800"
+                        }`}
+                      >
+                        {alert.type}
+                      </span>
+                      <span className="text-xs text-gray-400 font-mono">
+                        {alert.time}
+                      </span>
+                    </div>
+                    <p className="font-semibold text-gray-800 text-sm mt-1">
+                      {alert.message}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Source: {alert.tank}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
