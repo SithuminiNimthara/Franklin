@@ -18,12 +18,10 @@ import {
   smoothY,
 } from "./utils/polyline.util.js";
 
-import {
-  DATA_DIR,
-  BOUNDARY_FILE,
-  NESTS_FILE,
-  ALERTS_FILE,
-} from "./config/paths.js";
+import { DATA_DIR, BOUNDARY_FILE, NESTS_FILE } from "./config/paths.js";
+
+// ✅ MongoDB Alert model
+import Alert from "./models/alert.model.js";
 
 // ✅ python base url
 const PY_INFER_URL = process.env.PY_INFER_URL || "http://localhost:9000";
@@ -37,7 +35,7 @@ const __dirname = path.dirname(__filename);
 // backend/src/modules/shoreline/data/demo_videos/shoreline_demo.mp4
 const DEMO_VIDEO_DIR = path.join(__dirname, "data", "demo_videos");
 
-/** Bootstrap defaults */
+/** Bootstrap defaults (boundary + nests only) */
 function ensureDefaults() {
   ensureDir(DATA_DIR);
 
@@ -63,9 +61,6 @@ function ensureDefaults() {
       { id: "nest-3", label: "Nest #201", x: 80, y: 60 },
     ]);
   }
-
-  const alerts = readJson(ALERTS_FILE, null);
-  if (!Array.isArray(alerts)) writeJson(ALERTS_FILE, []);
 }
 ensureDefaults();
 
@@ -133,12 +128,6 @@ export function deleteNest(req, res) {
   res.json({ status: "ok", deleted: id });
 }
 
-/** Alerts */
-export function getAlerts(req, res) {
-  const alerts = readJson(ALERTS_FILE, []);
-  res.json(alerts);
-}
-
 /** Predict proxy (IMAGE) */
 export async function predictProxy(req, res) {
   try {
@@ -147,7 +136,7 @@ export async function predictProxy(req, res) {
     const { status, body } = await predictViaPython(
       req.file.buffer,
       req.file.originalname || "frame.jpg",
-      req.file.mimetype || "image/jpeg"
+      req.file.mimetype || "image/jpeg",
     );
 
     return res.status(status).json(body);
@@ -240,7 +229,7 @@ export async function evaluateOffline(req, res) {
     const { status, body } = await predictViaPython(
       req.file.buffer,
       req.file.originalname || "offline.jpg",
-      req.file.mimetype || "image/jpeg"
+      req.file.mimetype || "image/jpeg",
     );
 
     if (status !== 200) return res.status(status).json(body);
@@ -275,19 +264,35 @@ export async function evaluateOffline(req, res) {
       bufferPct,
     });
 
+    console.log("RISK EVALUATION RESULT:", {
+      riskLevel: evaluation.riskLevel,
+      boundaryCrossed: evaluation.boundaryCrossed,
+      nestsAtRisk: evaluation.nestsAtRisk?.length,
+    });
+
+    // ✅ Save HIGH risk alerts into MongoDB (instead of alerts.json)
     if (evaluation.riskLevel === "high") {
-      const alerts = readJson(ALERTS_FILE, []);
-      alerts.unshift({
-        id: uid(),
+      await Alert.create({
         type: "shoreline",
-        time: nowIso(),
+        riskLevel: "high",
         message: evaluation.boundaryCrossed
           ? "Shoreline crossed boundary line"
           : "Shoreline close to turtle nests",
-        riskLevel: "high",
-        details: evaluation,
+        status: "new",
+        source: "offline_image",
+        details: {
+          evaluation,
+          bufferPct,
+          boundary,
+          nests,
+          shoreline: shorelinePct,
+          image: { w: imgW, h: imgH },
+          model: {
+            shoreline_conf: body.shoreline_conf ?? null,
+            notes: body.notes ?? null,
+          },
+        },
       });
-      writeJson(ALERTS_FILE, alerts.slice(0, 50));
     }
 
     return res.json({

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import alertRoutes from "./alerts.routes.js";
 
 import {
   evaluateOffline,
@@ -7,10 +8,9 @@ import {
   getNests,
   addNest,
   deleteNest,
-  getAlerts,
   predictProxy,
   predictVideoProxy,
-  predictVideoDemo, // ✅ NEW
+  predictVideoDemo,
 } from "./shoreline.controller.js";
 
 import { uploadSingleFile } from "./middlewares/upload.middleware.js";
@@ -26,17 +26,13 @@ router.get("/nests", getNests);
 router.post("/nests", addNest);
 router.delete("/nests/:id", deleteNest);
 
-// Alerts
-router.get("/alerts", getAlerts);
+// ✅ Alerts (MongoDB)
+router.use("/alerts", alertRoutes);
 
-//  Inference
+// Inference
 router.post("/predict", uploadSingleFile, predictProxy);
 router.post("/evaluate-offline", uploadSingleFile, evaluateOffline);
-
-// Upload video inference (still supported)
 router.post("/predict-video", uploadSingleFile, predictVideoProxy);
-
-//  NEW: demo video inference (no upload)
 router.get("/predict-video-demo", predictVideoDemo);
 
 export default router;
