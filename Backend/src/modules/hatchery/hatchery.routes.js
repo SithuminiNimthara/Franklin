@@ -5,7 +5,7 @@ import multer from "multer";
 
 const router = express.Router();
 
-//  1. Multer Configuration
+// Multer Configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadPath = "uploads/hatchery";
@@ -33,22 +33,17 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
-  limits: { fileSize: 500 * 1024 * 1024 },
-  // Limit: 500MB
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
 });
 
-// POST: Upload Video
-router.post(
-  "/upload",
-  upload.single("video"),
-  hatcheryController.uploadFootage,
-);
-
-// Serve Video File
+router.post("/upload", upload.single("video"), hatcheryController.uploadFootage);
 router.get("/video/:filename", hatcheryController.streamVideo);
 router.post("/video/:videoId/analysis", hatcheryController.updateVideoAnalysis);
-
 router.get("/stats/:tankId", hatcheryController.getTankStats);
+router.post("/alerts/new", hatcheryController.saveAlert);
 router.get("/alerts", hatcheryController.getAlerts);
+router.patch("/alerts/:alertId", hatcheryController.updateAlertStatus);  
+//router.delete("/alerts/:alertId", hatcheryController.deleteAlert);
+router.get("/report/hatchery", hatcheryController.generateHatcheryReport);
 
 export default router;
