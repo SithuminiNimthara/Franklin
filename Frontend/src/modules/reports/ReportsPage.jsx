@@ -1,15 +1,53 @@
-import { FileText, Download, TrendingUp, Calendar, BarChart3, PieChart } from 'lucide-react';
+import {
+  FileText,
+  Download,
+  TrendingUp,
+  Calendar,
+  BarChart3,
+  PieChart,
+} from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import StatSummaryCard from '../../shared/components/ui/StatSummaryCard';
 import Button from '../../shared/components/ui/Button';
+import HatcheryReportItem from './hatchery/HatcheryReportItem';
 
 export default function ReportsPage() {
   const reports = [
-    { id: 1, title: 'Monthly Conservation Summary', date: '2025-10-01', type: 'Summary', status: 'Available' },
-    { id: 2, title: 'Turtle Health Analytics', date: '2025-10-10', type: 'Health', status: 'Available' },
-    { id: 3, title: 'Nest Success Rate Report', date: '2025-10-05', type: 'Nesting', status: 'Available' },
-    { id: 4, title: 'Environmental Risk Assessment', date: '2025-10-08', type: 'Risk', status: 'Available' },
-    { id: 5, title: 'Hatchery Performance Report', date: '2025-10-12', type: 'Hatchery', status: 'Generating' },
+    {
+      id: 1,
+      title: 'Monthly Conservation Summary',
+      date: '2025-10-01',
+      type: 'Summary',
+      status: 'Available',
+    },
+    {
+      id: 2,
+      title: 'Turtle Health Analytics',
+      date: '2025-10-10',
+      type: 'Health',
+      status: 'Available',
+    },
+    {
+      id: 3,
+      title: 'Nest Success Rate Report',
+      date: '2025-10-05',
+      type: 'Nesting',
+      status: 'Available',
+    },
+    {
+      id: 4,
+      title: 'Environmental Risk Assessment',
+      date: '2025-10-08',
+      type: 'Risk',
+      status: 'Available',
+    },
+    {
+      id: 5,
+      title: 'Hatchery Performance Report',
+      date: '2025-10-12',
+      type: 'Hatchery',
+      status: 'Available',
+    },
   ];
 
   return (
@@ -60,7 +98,10 @@ export default function ReportsPage() {
                 <span className="text-sm font-bold text-blue-700">87.3%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2.5 rounded-full" style={{ width: '87.3%' }}></div>
+                <div
+                  className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2.5 rounded-full"
+                  style={{ width: '87.3%' }}
+                ></div>
               </div>
             </div>
 
@@ -70,7 +111,10 @@ export default function ReportsPage() {
                 <span className="text-sm font-bold text-green-700">92.1%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                <div className="bg-gradient-to-r from-green-500 to-emerald-500 h-2.5 rounded-full" style={{ width: '92.1%' }}></div>
+                <div
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 h-2.5 rounded-full"
+                  style={{ width: '92.1%' }}
+                ></div>
               </div>
             </div>
 
@@ -80,7 +124,10 @@ export default function ReportsPage() {
                 <span className="text-sm font-bold text-purple-700">98.5%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full" style={{ width: '98.5%' }}></div>
+                <div
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full"
+                  style={{ width: '98.5%' }}
+                ></div>
               </div>
             </div>
 
@@ -90,7 +137,10 @@ export default function ReportsPage() {
                 <span className="text-sm font-bold text-amber-700">95.8%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                <div className="bg-gradient-to-r from-amber-500 to-orange-500 h-2.5 rounded-full" style={{ width: '95.8%' }}></div>
+                <div
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 h-2.5 rounded-full"
+                  style={{ width: '95.8%' }}
+                ></div>
               </div>
             </div>
           </div>
@@ -131,47 +181,53 @@ export default function ReportsPage() {
         iconBg="bg-cyan-100"
       >
         <div className="space-y-3">
-          {reports.map((report) => (
-            <div
-              key={report.id}
-              className="bg-gradient-to-r from-gray-50 to-white border-2 border-gray-100 rounded-xl p-4 hover:shadow-lg hover:border-cyan-200 transition-all duration-300 transform hover:-translate-y-1"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4">
-                  <div className="bg-gradient-to-br from-cyan-100 to-blue-100 p-3 rounded-xl">
-                    <FileText className="h-6 w-6 text-cyan-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">{report.title}</h4>
-                    <div className="flex items-center space-x-3 mt-2">
-                      <span className="text-xs text-gray-600 flex items-center">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {report.date}
-                      </span>
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
-                        {report.type}
-                      </span>
+          {reports.map((report) =>
+            report.type === 'Hatchery' ? (
+              // Used hatchery report component
+              <HatcheryReportItem key={report.id} report={report} />
+            ) : (
+              // Generic report card for other types
+              <div
+                key={report.id}
+                className="bg-gradient-to-r from-gray-50 to-white border-2 border-gray-100 rounded-xl p-4 hover:shadow-lg hover:border-cyan-200 transition-all duration-300 transform hover:-translate-y-1"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-4">
+                    <div className="bg-gradient-to-br from-cyan-100 to-blue-100 p-3 rounded-xl">
+                      <FileText className="h-6 w-6 text-cyan-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">{report.title}</h4>
+                      <div className="flex items-center space-x-3 mt-2">
+                        <span className="text-xs text-gray-600 flex items-center">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          {report.date}
+                        </span>
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                          {report.type}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center space-x-2">
-                  {report.status === 'Available' ? (
-                    <>
-                      <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold">
-                        AVAILABLE
+                  <div className="flex items-center space-x-2">
+                    {report.status === 'Available' ? (
+                      <>
+                        <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold">
+                          AVAILABLE
+                        </span>
+                        <Button className="p-2 h-auto" icon={Download} />
+                      </>
+                    ) : (
+                      <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold animate-pulse">
+                        GENERATING
                       </span>
-                      <Button className="p-2 h-auto" icon={Download} />
-                    </>
-                  ) : (
-                    <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold animate-pulse">
-                      GENERATING
-                    </span>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          )}
         </div>
 
         <div className="mt-6 flex space-x-3">
