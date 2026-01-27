@@ -10,7 +10,8 @@ import shorelineRoutes from "./modules/shoreline/shoreline.routes.js";
 import { connectDB } from './config/db.js';
 import detectionsRoutes from './modules/detections/detections.routes.js';
 import healthRoutes from './modules/turtleHealth/health.routes.js';
-import hatcheryRoutes from './modules/hatchery/hatchery.routes.js'; 
+import hatcheryRoutes from './modules/hatchery/hatchery.routes.js';
+import alertsRoutes from './modules/alerts/alerts.routes.js';
 
 const app = express();
 
@@ -26,10 +27,10 @@ connectDB();
 
 // Static Routes (Streaming)
 app.use('/streams', express.static(config.streamDir, {
-    setHeaders(res) {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-    },
-  })
+  setHeaders(res) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  },
+})
 );
 
 // API Routes
@@ -41,10 +42,11 @@ app.use('/api/detections', detectionsRoutes);
 app.use('/api/health', healthRoutes);
 app.use("/api/shoreline", shorelineRoutes);
 app.use("/api/hatchery", hatcheryRoutes);
+app.use("/api/alerts", alertsRoutes);
 
 // Root route
 app.get('/', (req, res) => {
-    res.send('Franklin Conservation Backend Running (Port 5000)');
+  res.send('Franklin Conservation Backend Running (Port 5000)');
 });
 
 export default app;
