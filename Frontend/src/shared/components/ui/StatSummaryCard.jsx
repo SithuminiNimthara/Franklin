@@ -20,8 +20,7 @@ export default function StatSummaryCard({
 
     return (
         <div className={twMerge(
-            // Removed 'transform' and 'hover:scale-105'
-            "bg-gradient-to-br rounded-2xl shadow-2xl p-6 text-white transition-all duration-300",
+            "bg-gradient-to-br rounded-2xl shadow-2xl p-6 text-white !text-white [&_*]:!text-white transition-all duration-300",
             themes[colorTheme] || themes.blue,
             className
         )}>

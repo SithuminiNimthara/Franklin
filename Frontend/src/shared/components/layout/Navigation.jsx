@@ -1,5 +1,6 @@
 import { Waves, Activity, Video, MapPin, Droplets, FileText, User, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import { UserButton } from '@clerk/clerk-react';
 
 export default function Navigation({ activeTab, onTabChange }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -14,22 +15,30 @@ export default function Navigation({ activeTab, onTabChange }) {
   ];
 
   return (
-    <nav className="bg-gradient-to-r from-cyan-700 via-teal-600 to-blue-700 shadow-xl backdrop-blur-lg border-b border-white/10 sticky top-0 z-50 transition-all duration-500">
+    <nav className="bg-gradient-to-r from-cyan-500 via-teal-600 to-blue-700 shadow-xl backdrop-blur-lg border-b border-white/10 sticky top-0 z-50 transition-all duration-500">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <div className="flex items-center space-x-8">
-            <div className="flex items-center space-x-3 group cursor-pointer">
-              <div className="relative">
-                <div className="absolute inset-0 bg-cyan-400 rounded-full blur-md opacity-30 group-hover:opacity-50 transition-opacity duration-300"></div>
-                <Waves className="relative h-10 w-10 text-white drop-shadow-lg transform group-hover:scale-110 transition-transform duration-300" />
-              </div>
-              <div>
-                <span className="text-white font-extrabold text-xl tracking-wide drop-shadow-sm">
-                  Sea Turtle Conservation
-                </span>
-                <p className="text-cyan-100 text-xs font-medium italic">Marine Protection System</p>
-              </div>
+           <div className="flex items-center space-x-3 group cursor-pointer">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full bg-cyan-400 blur-md opacity-30 transition-opacity duration-300 group-hover:opacity-50"></div>
+
+              <img
+                src="/images/logo.png"
+                alt="Franklin Logo"
+                className="relative w-24 h-24 object-contain rounded-full"
+              />
             </div>
+
+            <div className="leading-tight">
+              <span className="block font-extrabold text-xl tracking-wide text-white drop-shadow-sm">
+                FRANKLIN
+              </span>
+              <p className="text-xs font-medium italic text-blue-700 dark:text-blue-300">
+                Sea Turtle Protection System
+              </p>
+            </div>
+          </div>
 
             <div className="hidden lg:flex space-x-3">
               {tabs.map((tab) => {
@@ -39,14 +48,14 @@ export default function Navigation({ activeTab, onTabChange }) {
                     key={tab.id}
                     onClick={() => onTabChange(tab.id)}
                     className={`group relative flex items-center space-x-2 px-5 py-2.5 rounded-xl transition-all duration-300 font-semibold tracking-wide ${activeTab === tab.id
-                        ? 'bg-white text-cyan-700 shadow-md scale-105'
-                        : 'text-white/90 hover:bg-white/15 hover:text-white hover:scale-105 hover:shadow-lg'
+                      ? 'bg-white-100 text-black shadow-md scale-105'
+                      : 'text-white/90 hover:bg-white/15 hover:text-white hover:scale-105 hover:shadow-lg'
                       }`}
                   >
                     <Icon
                       className={`h-4 w-4 transition-transform duration-200 ${activeTab === tab.id
-                          ? 'text-cyan-600 scale-110'
-                          : 'group-hover:scale-110 text-white'
+                        ? 'text-black scale-110'
+                        : 'group-hover:scale-110 text-white'
                         }`}
                     />
                     <span className="text-sm">{tab.label}</span>
@@ -59,7 +68,7 @@ export default function Navigation({ activeTab, onTabChange }) {
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-4">
             <button
               onClick={() => onTabChange('profile')}
               className="hidden lg:block bg-white/10 hover:bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl transition-all duration-300 group relative overflow-hidden border border-white/20"
@@ -70,6 +79,11 @@ export default function Navigation({ activeTab, onTabChange }) {
                 <span className="text-white font-medium text-sm">Profile</span>
               </div>
             </button>
+
+            <div className="hover:bg-white/20 transition-all duration-300">
+              <UserButton afterSignOutUrl="/sign-in" />
+            </div>
+
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -97,8 +111,8 @@ export default function Navigation({ activeTab, onTabChange }) {
                       setMobileMenuOpen(false);
                     }}
                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${activeTab === tab.id
-                        ? 'bg-white text-cyan-700 shadow-lg'
-                        : 'text-white/90 hover:bg-white/10 hover:scale-[1.02]'
+                      ? 'bg-white text-cyan-700 shadow-lg'
+                      : 'text-white/90 hover:bg-white/10 hover:scale-[1.02]'
                       }`}
                   >
                     <Icon className="h-5 w-5" />
