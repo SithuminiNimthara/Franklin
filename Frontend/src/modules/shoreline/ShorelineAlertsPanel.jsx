@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle2, BadgeCheck, RefreshCcw } from "lucide-react";
+import { BadgeCheck, RefreshCcw } from "lucide-react";
 import DashboardCard from "../../shared/components/ui/DashboardCard.jsx";
 
 import {
@@ -55,7 +55,6 @@ export default function ShorelineAlertsPanel({ staffName = "Ranger-01" }) {
 
   useEffect(() => {
     refresh();
-    // optional auto refresh every 10s
     const t = setInterval(refresh, 10000);
     return () => clearInterval(t);
   }, []);
@@ -166,7 +165,37 @@ export default function ShorelineAlertsPanel({ staffName = "Ranger-01" }) {
                 <b>{a.details?.evaluation?.nestsAtRisk?.length || 0}</b>
               </div>
 
-              {/* Show who acknowledged/resolved */}
+              {/* ✅ Environment (tide + rain) */}
+              <div className="mt-2 text-sm text-gray-700">
+                <div className="flex flex-wrap gap-3">
+                  <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700">
+                    Rain (last 3h):{" "}
+                    <b>{a.details?.environment?.rain?.last3h_mm ?? "N/A"} mm</b>
+                  </span>
+
+                  <span className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700">
+                    Rain (next 6h):{" "}
+                    <b>{a.details?.environment?.rain?.next6h_mm ?? "N/A"} mm</b>
+                  </span>
+
+                  <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700">
+                    Tide height:{" "}
+                    <b>{a.details?.environment?.tide?.height_m ?? "N/A"} m</b>
+                  </span>
+
+                  <span className="px-2 py-1 rounded-lg bg-gray-50 text-gray-700">
+                    Tide trend:{" "}
+                    <b>{a.details?.environment?.tide?.trend ?? "unknown"}</b>
+                  </span>
+
+                  <span className="px-2 py-1 rounded-lg bg-gray-50 text-gray-700">
+                    Env source:{" "}
+                    <b>{a.details?.environment?.source ?? "manual"}</b>
+                  </span>
+                </div>
+              </div>
+
+              {/* Who acknowledged / resolved */}
               <div className="mt-2 text-xs text-gray-500">
                 {a.acknowledgedBy && (
                   <span className="mr-3">

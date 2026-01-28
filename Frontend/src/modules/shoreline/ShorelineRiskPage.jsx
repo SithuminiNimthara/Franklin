@@ -6,6 +6,7 @@ import DashboardCard from "../../shared/components/ui/DashboardCard.jsx";
 import ShorelineBeachMap from "../../shared/components/maps/ShorelineBeachMap.jsx";
 import ShorelineVideoPlayer from "../shoreline/ShorelineVideoPlayer.jsx";
 import ShorelineAlertsPanel from "../shoreline/ShorelineAlertsPanel.jsx";
+import EnvironmentManualForm from "../shoreline/EnvironmentManualForm.jsx";
 
 import {
   getBoundary,
@@ -284,13 +285,16 @@ export default function ShorelineRiskPage() {
           crossedBoundary={crossedBoundary}
         />
 
-        <ShorelineAlertsPanel staffName="Ranger-01" />
-
         {alerts.length === 0 && (
           <p className="mt-4 text-sm text-gray-500">
             No active shoreline alerts.
           </p>
         )}
+      </DashboardCard>
+
+      <DashboardCard title="Active Shoreline Alerts" icon={AlertTriangle}>
+        <ShorelineAlertsPanel staffName="Ranger-01" />
+        <EnvironmentManualForm />
       </DashboardCard>
 
       {/* ✅ Demo Video Playback under Map */}
