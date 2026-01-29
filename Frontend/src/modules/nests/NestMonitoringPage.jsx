@@ -8,6 +8,7 @@ import { Card, CardContent } from '../../shared/components/ui/Card';
 import Button from '../../shared/components/ui/Button';
 import SimulationUpload from './SimulationUpload';
 import { useUser } from '@clerk/clerk-react';
+import CameraSelector from '../../shared/components/media/CameraSelector';
 
 const MOCK_NESTS = [
   { nestNo: 'N001', x: 25, y: 40, locationName: 'Zone A', createdAt: '2026-01-26 10:00:00', status: 'safe' },
@@ -20,6 +21,7 @@ const MOCK_NESTS = [
 export default function NestMonitoringPage() {
   const { user, isLoaded: userLoaded } = useUser();
   const [simulationData, setSimulationData] = useState(null);
+  const [activeCamera, setActiveCamera] = useState(null);
   const [simulationEntities, setSimulationEntities] = useState(null);
   const [detectionHistory, setDetectionHistory] = useState([]);
   const [activeAlerts, setActiveAlerts] = useState([]);
@@ -44,8 +46,12 @@ export default function NestMonitoringPage() {
   const [nests, setNests] = useState(MOCK_NESTS);
   const RADIUS_THRESHOLD = 15;
 
+  const streamUrl = activeCamera
+    ? `${import.meta.env.VITE_API_BASE_URL}/streams/${activeCamera._id}/stream.m3u8`
+    : null;
+
   useEffect(() => {
-    const socket = io('http://localhost:5002');
+    const socket = io(import.meta.env.VITE_API_BASE_URL);
     socket.on('danger_alert', (data) => console.log('Central Server Alert:', data));
     return () => socket.disconnect();
   }, []);
@@ -66,7 +72,7 @@ export default function NestMonitoringPage() {
   }, []);
 
   const fetchHistory = () => {
-    fetch('http://localhost:5002/api/detections')
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/detections`)
       .then(res => res.json())
       .then(res => { if (res.success) setDetectionHistory(res.data); })
       .catch(err => console.error("Failed to load history", err));
@@ -96,7 +102,7 @@ export default function NestMonitoringPage() {
     playSiren();
 
     try {
-      await fetch('http://localhost:5002/api/alerts/email', {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/alerts/email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -253,6 +259,8 @@ export default function NestMonitoringPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <CameraSelector onSelect={setActiveCamera} activeCameraId={activeCamera?._id} />
+
           <div className="flex items-center bg-white dark:bg-slate-900 p-1 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
             <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 px-2 uppercase italic">Alert Delay:</span>
             <select
@@ -305,16 +313,20 @@ export default function NestMonitoringPage() {
                 </div>
               </div>
 
-              {simulationData && (
+              {(simulationData || streamUrl) ? (
                 <div className="xl:w-[380px] bg-gray-50 dark:bg-slate-800/20 p-4 space-y-4 border-l border-gray-100 dark:border-slate-800 flex flex-col">
                   <div className="bg-black rounded-2xl overflow-hidden shadow-xl aspect-video relative">
-                    <video ref={videoRef} src={simulationData.video_url} controls autoPlay className="w-full h-full object-cover" onTimeUpdate={handleTimeUpdate} />
+                    {simulationData ? (
+                      <video ref={videoRef} src={simulationData.video_url} controls autoPlay className="w-full h-full object-cover" onTimeUpdate={handleTimeUpdate} />
+                    ) : (
+                      <HlsPlayer src={streamUrl} className="w-full h-full" />
+                    )}
                   </div>
 
                   <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 flex-1 space-y-4">
                     <h4 className="font-bold text-gray-900 dark:text-white uppercase text-[10px] tracking-wider flex items-center">
                       <BadgeCheck className="h-3 w-3 mr-2 text-teal-500" />
-                      Live Statistics
+                      {simulationData ? 'Simulation Statistics' : 'Live Monitor Stats'}
                     </h4>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-teal-50/50 dark:bg-teal-900/10 p-3 rounded-xl border border-teal-50 dark:border-teal-900/20">
@@ -338,6 +350,11 @@ export default function NestMonitoringPage() {
                       ))}
                     </div>
                   </div>
+                </div>
+              ) : (
+                <div className="xl:w-[380px] bg-gray-50 dark:bg-slate-800/20 p-4 space-y-4 border-l border-gray-100 dark:border-slate-800 flex flex-col items-center justify-center">
+                  <Video className="h-12 w-12 text-gray-300 mb-2" />
+                  <p className="text-gray-500 text-xs font-medium">Select a camera or upload simulation</p>
                 </div>
               )}
             </div>
