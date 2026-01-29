@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Route to get status/list of streams
 router.get('/', streamingController.getStatus);
+router.get('/health/:cameraId', streamingController.getHealth);
 
 // We also need to expose the static files. 
 // In a modular monolith, ideally the module exposes its assets or the main app does.

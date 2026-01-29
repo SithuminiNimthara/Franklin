@@ -6,6 +6,9 @@ import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 import { useTheme } from '../../shared/ThemeContext';
 
+import CameraSection from './CameraSection';
+
+
 export default function ProfilePage() {
   const { user, isLoaded: userLoaded } = useUser();
   const { getToken } = useAuth();
@@ -281,6 +284,8 @@ export default function ProfilePage() {
             </div>
           </DashboardCard>
 
+          <CameraSection />
+
           <DashboardCard
             title="Settings & Notifications"
             icon={Settings}
@@ -303,8 +308,8 @@ export default function ProfilePage() {
                   <div
                     key={item.id}
                     className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 ${isChecked
-                        ? 'bg-white dark:bg-slate-800 border-cyan-500 shadow-sm'
-                        : 'bg-gray-50 dark:bg-slate-900/50 border-gray-100 dark:border-slate-800'
+                      ? 'bg-white dark:bg-slate-800 border-cyan-500 shadow-sm'
+                      : 'bg-gray-50 dark:bg-slate-900/50 border-gray-100 dark:border-slate-800'
                       }`}
                   >
                     <div className="flex items-center space-x-3">
