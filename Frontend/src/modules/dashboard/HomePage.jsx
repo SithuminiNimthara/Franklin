@@ -9,14 +9,15 @@ export default function HomePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
-          <p className="text-gray-600 mt-1">Real-time monitoring of sea turtle conservation efforts</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard Overview</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Real-time monitoring of sea turtle conservation efforts</p>
         </div>
-        <div className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white px-6 py-3 rounded-xl shadow-lg">
-          <p className="text-sm font-medium">System Status</p>
-          <p className="text-2xl font-bold">All Systems Operational</p>
+        <div className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white !text-white [&_*]:text-white px-6 py-3 rounded-xl shadow-lg">
+          <p className="text-sm font-medium !text-white">System Status</p>
+          <p className="text-2xl font-bold !text-white">All Systems Operational</p>
         </div>
       </div>
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <StatSummaryCard
@@ -54,34 +55,34 @@ export default function HomePage() {
           title="Turtle Health Monitoring"
           icon={Activity}
           iconColor="text-blue-600"
-          iconBg="bg-blue-100"
+          iconBg="bg-blue-100 dark:bg-blue-900/30"
         >
           <div className="space-y-3">
-            <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-              <span className="text-sm text-gray-600">Turtles Scanned Today</span>
+            <div className="bg-white dark:bg-slate-800/50 p-3 rounded-lg border border-gray-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Turtles Scanned Today</span>
               <div className="flex items-center space-x-2">
-                <span className="font-bold text-gray-900">23</span>
+                <span className="font-bold text-gray-900 dark:text-white">23</span>
                 <span className="text-xs text-green-600 font-medium">+8</span>
               </div>
             </div>
-            <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-              <span className="text-sm text-gray-600">FP Cases Detected</span>
+            <div className="bg-white dark:bg-slate-800/50 p-3 rounded-lg border border-gray-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">FP Cases Detected</span>
               <div className="flex items-center space-x-2">
-                <span className="font-bold text-gray-900">3</span>
+                <span className="font-bold text-gray-900 dark:text-white">3</span>
                 <span className="text-xs text-gray-500 font-medium">Stable</span>
               </div>
             </div>
-            <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-              <span className="text-sm text-gray-600">Barnacle Infestations</span>
+            <div className="bg-white dark:bg-slate-800/50 p-3 rounded-lg border border-gray-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Barnacle Infestations</span>
               <div className="flex items-center space-x-2">
-                <span className="font-bold text-gray-900">7</span>
+                <span className="font-bold text-gray-900 dark:text-white">7</span>
                 <span className="text-xs text-red-600 font-medium">-2</span>
               </div>
             </div>
-            <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-              <span className="text-sm text-gray-600">Healthy Assessments</span>
+            <div className="bg-white dark:bg-slate-800/50 p-3 rounded-lg border border-gray-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Healthy Assessments</span>
               <div className="flex items-center space-x-2">
-                <span className="font-bold text-gray-900">13</span>
+                <span className="font-bold text-gray-900 dark:text-white">13</span>
                 <span className="text-xs text-green-600 font-medium">+5</span>
               </div>
             </div>
@@ -95,7 +96,7 @@ export default function HomePage() {
           title="Nest Monitoring & Predators"
           icon={Video}
           iconColor="text-teal-600"
-          iconBg="bg-teal-100"
+          iconBg="bg-teal-100 dark:bg-teal-900/30"
         >
           <div className="mb-4 bg-gray-900 rounded-xl overflow-hidden aspect-video relative">
             <HlsPlayer
@@ -108,13 +109,13 @@ export default function HomePage() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-              <span className="text-sm text-gray-600">Nests Detected</span>
-              <span className="font-bold text-gray-900">43</span>
+            <div className="bg-white dark:bg-slate-800/50 p-3 rounded-lg border border-gray-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Nests Detected</span>
+              <span className="font-bold text-gray-900 dark:text-white">43</span>
             </div>
-            <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-              <span className="text-sm text-gray-600">Predator Alerts</span>
-              <span className="font-bold text-gray-900 text-red-600">2</span>
+            <div className="bg-white dark:bg-slate-800/50 p-3 rounded-lg border border-gray-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Predator Alerts</span>
+              <span className="font-bold text-gray-900 dark:text-white text-red-600">2</span>
             </div>
           </div>
           <Button variant="success" className="mt-4 w-full">
@@ -128,31 +129,31 @@ export default function HomePage() {
           title="Shoreline Risk Assessment"
           icon={MapPin}
           iconColor="text-orange-600"
-          iconBg="bg-orange-100"
+          iconBg="bg-orange-100 dark:bg-orange-900/30"
         >
-          <div className="mb-4 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl h-48 relative overflow-hidden">
+          <div className="mb-4 bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-slate-800 dark:to-slate-900 rounded-xl h-48 relative overflow-hidden">
             <div className="absolute inset-0 flex items-center justify-center">
               <MapPin className="h-16 w-16 text-cyan-600/30" />
             </div>
-            <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg p-2">
+            <div className="absolute bottom-3 left-3 right-3 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg p-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-gray-700">High Risk Zones</span>
-                <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full font-bold">4</span>
+                <span className="font-medium text-gray-700 dark:text-gray-200">High Risk Zones</span>
+                <span className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-1 rounded-full font-bold">4</span>
               </div>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <div className="bg-red-50 rounded-lg p-2 text-center">
-              <p className="text-xs text-red-600 font-medium">High Risk</p>
-              <p className="text-lg font-bold text-red-700">4</p>
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-2 text-center">
+              <p className="text-xs text-red-600 dark:text-red-400 font-medium">High Risk</p>
+              <p className="text-lg font-bold text-red-700 dark:text-red-500">4</p>
             </div>
-            <div className="bg-amber-50 rounded-lg p-2 text-center">
-              <p className="text-xs text-amber-600 font-medium">Medium</p>
-              <p className="text-lg font-bold text-amber-700">7</p>
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-center">
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Medium</p>
+              <p className="text-lg font-bold text-amber-700 dark:text-amber-500">7</p>
             </div>
-            <div className="bg-green-50 rounded-lg p-2 text-center">
-              <p className="text-xs text-green-600 font-medium">Low Risk</p>
-              <p className="text-lg font-bold text-green-700">32</p>
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 text-center">
+              <p className="text-xs text-green-600 dark:text-green-400 font-medium">Low Risk</p>
+              <p className="text-lg font-bold text-green-700 dark:text-green-500">32</p>
             </div>
           </div>
           <Button variant="warning" className="mt-4 w-full text-white">
@@ -164,41 +165,42 @@ export default function HomePage() {
           title="Hatchery Monitoring"
           icon={Droplets}
           iconColor="text-purple-600"
-          iconBg="bg-purple-100"
+          iconBg="bg-purple-100 dark:bg-purple-900/30"
         >
           <div className="space-y-3 mb-4">
             <div className="space-y-3">
-              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-500">Baby Turtles Tracked</p>
+              <div className="bg-white dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Baby Turtles Tracked</p>
                 <div className="flex items-end justify-between mt-1">
-                  <h4 className="text-xl font-bold text-gray-900">234</h4>
-                  <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">+12</span>
+                  <h4 className="text-xl font-bold text-gray-900 dark:text-white">234</h4>
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full">+12</span>
                 </div>
               </div>
-              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-500">Abnormal Behavior Alerts</p>
+              <div className="bg-white dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Abnormal Behavior Alerts</p>
                 <div className="flex items-end justify-between mt-1">
-                  <h4 className="text-xl font-bold text-gray-900">1</h4>
-                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Low</span>
+                  <h4 className="text-xl font-bold text-gray-900 dark:text-white">1</h4>
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded-full">Low</span>
                 </div>
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4">
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-slate-800 dark:to-slate-900 rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Species Distribution</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Species Distribution</span>
               <TrendingUp className="h-4 w-4 text-purple-600" />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-600">Loggerhead</span>
-                <span className="font-bold text-gray-900">45%</span>
+                <span className="text-gray-600 dark:text-gray-400">Loggerhead</span>
+                <span className="font-bold text-gray-900 dark:text-white">45%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2">
                 <div className="bg-purple-500 h-2 rounded-full" style={{ width: '45%' }}></div>
               </div>
             </div>
           </div>
+
           <Button variant="purple" className="mt-4 w-full">
             View Hatchery Data
           </Button>

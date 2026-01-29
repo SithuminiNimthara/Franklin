@@ -43,11 +43,11 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
                     <Upload className="h-5 w-5 text-teal-600 mr-2" />
-                    Offline Simulation (Turtles, Predators, Humans)
+                    Offline Simulation
                 </h3>
                 {result && (
                     <button
@@ -56,7 +56,7 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
                             setResult(null);
                             if (onClear) onClear();
                         }}
-                        className="text-gray-500 hover:text-gray-700"
+                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                     >
                         <RefreshCcw className="h-4 w-4" />
                     </button>
@@ -65,7 +65,7 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
 
             {!result ? (
                 <div className="space-y-4">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-teal-500 transition-colors bg-gray-50">
+                    <div className="border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-lg p-8 text-center hover:border-teal-500 dark:hover:border-teal-400 transition-colors bg-gray-50 dark:bg-slate-800/50">
                         <input
                             type="file"
                             accept="video/*"
@@ -74,11 +74,11 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
                             onChange={handleFileChange}
                         />
                         <label htmlFor="video-upload" className="cursor-pointer flex flex-col items-center w-full h-full">
-                            <FileVideo className="h-12 w-12 text-teal-500 mb-2" />
-                            <span className="text-sm font-medium text-gray-700">
-                                {file ? file.name : "Upload CCTV Video for Analysis"}
+                            <FileVideo className="h-10 w-10 text-teal-500 mb-2" />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {file ? file.name : "Upload CCTV Video"}
                             </span>
-                            <span className="text-xs text-gray-500 mt-1">MP4, AVI, MOV</span>
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 uppercase font-bold tracking-widest">MP4, AVI, MOV</span>
                         </label>
                     </div>
 
@@ -86,13 +86,13 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
                         <button
                             onClick={handleUpload}
                             disabled={!file || loading}
-                            className={`flex items-center px-4 py-2 rounded-lg text-white font-medium transition-all ${!file || loading ? 'bg-gray-300 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700 shadow-md hover:shadow-lg'
+                            className={`flex items-center px-6 py-2 rounded-xl text-sm font-bold text-white transition-all ${!file || loading ? 'bg-gray-300 dark:bg-slate-700 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700 shadow-md hover:shadow-lg'
                                 }`}
                         >
                             {loading ? (
                                 <>
                                     <Loader className="h-4 w-4 animate-spin mr-2" />
-                                    Processing Models...
+                                    Processing...
                                 </>
                             ) : (
                                 <>
@@ -104,15 +104,13 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
                     </div>
                 </div>
             ) : (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 animate-fadeIn">
-                    <div className="flex items-center mb-2">
+                <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-900/30 rounded-xl p-4 animate-fadeIn">
+                    <div className="flex items-center mb-2 text-sm font-bold text-emerald-800 dark:text-emerald-400">
                         <CheckCircle className="h-5 w-5 text-emerald-600 mr-2" />
-                        <span className="font-bold text-emerald-800">Simulation Ready</span>
+                        <span>Analysis Ready</span>
                     </div>
-                    <p className="text-sm text-emerald-700">
-                        Analysis complete for <strong>{file.name}</strong>.
-                        Video duration: {result.duration?.toFixed(1)}s.
-                        Play the video below to see mapped detections.
+                    <p className="text-xs text-emerald-700 dark:text-emerald-500 opacity-90 italic">
+                        Play the video stream below to see detections.
                     </p>
                 </div>
             )}
