@@ -9,7 +9,10 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from ultralytics import YOLO
 import cv2
+import cv2
 import numpy as np
+import requests
+import json
 
 app = FastAPI()
 
@@ -26,6 +29,9 @@ MODELS_DIR = os.path.join(BASE_DIR, "models")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# Node.js Backend URL for Detections
+NODE_BACKEND_URL = "http://localhost:5002/api/detections"
 
 # Sources for models - ADJUST PATHS TO RELATIVE LOCATION IN THE WORKSPACE
 SOURCE_TURTLE = os.path.abspath(os.path.join(BASE_DIR, "../Nest_Detection_Backend/models/best.pt"))
@@ -71,6 +77,7 @@ try:
     ensure_models()
 except Exception as e:
     print(f"Setup error: {e}")
+
 
 @app.post("/analyze")
 async def analyze_video(file: UploadFile = File(...)):
@@ -230,6 +237,32 @@ async def analyze_video(file: UploadFile = File(...)):
                 dist = math.sqrt(dx**2 + dy**2)
                 d['distance_m'] = round((dist / 100.0) * 15.0, 2)
                 d['bearing_deg'] = round(math.degrees(math.atan2(dx, -dy)), 1)
+                
+                # --- AUTO-POST TO BACKEND ---
+                try:
+                    payload = {
+                        "type": d['type'],
+                        "confidence": d['score'],
+                        "location": {
+                            "zone": "Simulation Zone",
+                            "coordinates": {
+                                "x": d['map_x'],
+                                "y": d['map_y']
+                            }
+                        },
+                        "nestStatus": "safe", # Default
+                        "videoSource": video_filename,
+                        "details": f"Video Time: {timestamp:.2f}s, Dist: {d['distance_m']}m"
+                    }
+                    if d.get('hasNest'):
+                        payload['nestStatus'] = 'safe'
+                        payload['details'] += " (Potential Nest)"
+                    
+                    # Fire and forget
+                    requests.post(NODE_BACKEND_URL, json=payload, timeout=0.1)
+                except Exception as e:
+                    # Ignore connection errors to prevent slowing down too much or crashing
+                    pass
 
             results.append({
                 "time": timestamp,
@@ -252,6 +285,7 @@ async def get_content(filename: str):
     if os.path.exists(path):
         return FileResponse(path)
     raise HTTPException(status_code=404)
+
 
 if __name__ == "__main__":
     import uvicorn
