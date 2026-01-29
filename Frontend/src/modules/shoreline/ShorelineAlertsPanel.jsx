@@ -110,17 +110,17 @@ export default function ShorelineAlertsPanel({ staffName = "Ranger-01" }) {
       ) : items.length === 0 ? (
         <p className="text-sm text-gray-500">No alerts found.</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[520px] overflow-auto pr-1">
           {items.map((a) => (
             <div
               key={a._id}
-              className="border rounded-2xl p-4 bg-white shadow-sm"
+              className="rounded-2xl p-4 bg-gray-50 dark:bg-slate-900/40 border border-gray-100 dark:border-slate-800"
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <RiskBadge risk={a.riskLevel} />
                   <StatusBadge status={a.status} />
-                  <span className="text-sm text-gray-500">
+                  <span className="text-xs text-gray-500">
                     {new Date(a.createdAt).toLocaleString()}
                   </span>
                 </div>
@@ -154,7 +154,9 @@ export default function ShorelineAlertsPanel({ staffName = "Ranger-01" }) {
                 </div>
               </div>
 
-              <p className="mt-3 text-gray-800 font-semibold">{a.message}</p>
+              <p className="mt-3 text-gray-900 dark:text-white font-semibold">
+                {a.message}
+              </p>
 
               {/* Evidence summary */}
               <div className="mt-2 text-sm text-gray-600">

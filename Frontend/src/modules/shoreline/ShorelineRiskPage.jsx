@@ -225,8 +225,10 @@ export default function ShorelineRiskPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
+      {/* MAIN LAYOUT */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        {/* LEFT SIDE (Map + Video) */}
+        <div className="xl:col-span-8 space-y-6">
           <DashboardCard
             title="Risk Topography"
             icon={MapPin}
@@ -240,55 +242,48 @@ export default function ShorelineRiskPage() {
               crossedBoundary={crossedBoundary}
             />
           </DashboardCard>
-        </div>
 
-        {/* Alerts Panel + Environment Form */}
-        <DashboardCard title="Active Shoreline Alerts" icon={AlertTriangle}>
-          <ShorelineAlertsPanel staffName="Ranger-01" />
-          <EnvironmentManualForm />
-          {alerts.length === 0 && (
-            <p className="mt-4 text-sm text-gray-500">
-              No active shoreline alerts.
-            </p>
-          )}
-        </DashboardCard>
-
-        {/* Demo / Live Video */}
-        <DashboardCard
-          title="Live Tracking"
-          icon={Video}
-          iconBg="bg-purple-100 dark:bg-purple-900/30"
-          iconColor="text-purple-600"
-        >
-          {videoUrl ? (
-            <div className="space-y-4">
-              <div className="rounded-2xl overflow-hidden shadow-xl border-4 border-white dark:border-slate-800 bg-black aspect-video">
+          <DashboardCard
+            title="Live Tracking"
+            icon={Video}
+            iconBg="bg-purple-100 dark:bg-purple-900/30"
+            iconColor="text-purple-600"
+          >
+            {videoUrl ? (
+              <div className="space-y-4">
                 <ShorelineVideoPlayer
                   videoRef={videoRef}
                   src={videoUrl}
                   frameSeriesPct={frameSeriesPct}
                   onTimeShoreline={setShoreline}
                 />
+
+                <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
+                  <p className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                    AI Tracking Process
+                  </p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 italic">
+                    Shoreline contours are detected in real-time and projected
+                    onto the topography map above.
+                  </p>
+                </div>
               </div>
-              <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-gray-700 dark:text-gray-300">
-                  AI Tracking Process
-                </p>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 italic">
-                  Shoreline contours are detected in real-time and projected
-                  onto the topography map above.
+            ) : (
+              <div className="py-16 text-center bg-gray-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-gray-100 dark:border-slate-800">
+                <Video className="h-10 w-10 mx-auto text-gray-300 dark:text-gray-700 mb-2" />
+                <p className="text-[10px] font-bold text-gray-400 uppercase">
+                  Input Image Mode
                 </p>
               </div>
-            </div>
-          ) : (
-            <div className="py-20 text-center bg-gray-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-gray-100 dark:border-slate-800">
-              <Video className="h-10 w-10 mx-auto text-gray-300 dark:text-gray-700 mb-2" />
-              <p className="text-[10px] font-bold text-gray-400 uppercase">
-                Input Image Mode
-              </p>
-            </div>
-          )}
-        </DashboardCard>
+            )}
+          </DashboardCard>
+        </div>
+
+        {/* RIGHT SIDE (Alerts + Manual Env) */}
+        <div className="xl:col-span-4 space-y-6">
+          <ShorelineAlertsPanel staffName="Ranger-01" />
+          <EnvironmentManualForm />
+        </div>
       </div>
     </div>
   );
