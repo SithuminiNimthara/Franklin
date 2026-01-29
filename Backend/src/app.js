@@ -11,11 +11,29 @@ import { connectDB } from "./config/db.js";
 import detectionsRoutes from "./modules/detections/detections.routes.js";
 import healthRoutes from "./modules/turtleHealth/health.routes.js";
 import environmentRoutes from "./modules/environment/environment.routes.js";
+import hatcheryRoutes from "./modules/hatchery/hatchery.routes.js";
+import alertsRoutes from "./modules/alerts/alerts.routes.js";
+import profileRoutes from "./modules/users/profile.routes.js";
 
 const app = express();
 
+// Request logging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  if (req.method !== "GET") {
+    console.log("Body:", JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
+
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 app.use(express.json());
 
 // Initialize Database
@@ -43,9 +61,13 @@ app.use("/api/detections", detectionsRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/shoreline", shorelineRoutes);
 app.use("/api/environment", environmentRoutes);
+app.use("/api/hatchery", hatcheryRoutes);
+app.use("/api/alerts", alertsRoutes);
+app.use("/api/profile", profileRoutes);
+
 // Root route
 app.get("/", (req, res) => {
-  res.send("Franklin Conservation Backend Running (Port 5000)");
+  res.send(`Franklin Conservation Backend Running (Port ${config.port})`);
 });
 
 export default app;
