@@ -29,6 +29,7 @@ import { io } from "../../server.js";
 // ✅ Environment (API + manual fallback)
 import { getCurrentEnvironment } from "../environment/services/environment.service.js";
 import { environmentScore } from "./services/environmentRisk.service.js";
+import { notifyIfAllowed } from "./services/shorelineNotify.service.js";
 
 // ✅ python base url
 const PY_INFER_URL = process.env.PY_INFER_URL || "http://localhost:9000";
@@ -324,6 +325,10 @@ export async function evaluateOffline(req, res) {
     let createdAlert = null;
 
     if (finalRisk === "high") {
+      const cooldownKey = evaluation.boundaryCrossed
+        ? "shoreline_boundary_crossed"
+        : "shoreline_nests_at_risk";
+
       createdAlert = await Alert.create({
         type: "shoreline",
         riskLevel: "high",
@@ -332,6 +337,7 @@ export async function evaluateOffline(req, res) {
           : "Shoreline close to turtle nests",
         status: "new",
         source: "offline_image",
+        cooldownKey, // ✅ add this
         details: {
           evaluation,
           bufferPct,
@@ -344,7 +350,6 @@ export async function evaluateOffline(req, res) {
             notes: body.notes ?? null,
           },
 
-          // ✅ NEW: environment fusion
           environment,
           envScore,
           visionScore,
@@ -360,8 +365,15 @@ export async function evaluateOffline(req, res) {
       } catch (e) {
         console.warn("Socket emit failed:", e?.message || e);
       }
-    }
 
+      // ✅ EMAIL notify (with cooldown protection)
+      try {
+        const emailResult = await notifyIfAllowed({ alertDoc: createdAlert });
+        console.log("Email notify result:", emailResult);
+      } catch (e) {
+        console.warn("Email notify failed:", e?.message || e);
+      }
+    }
     // 9) response includes environment + fused risk
     return res.json({
       mode: "offline",
