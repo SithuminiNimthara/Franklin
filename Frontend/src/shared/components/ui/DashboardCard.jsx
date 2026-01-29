@@ -9,11 +9,13 @@ export default function DashboardCard({
   children,
 }) {
   return (
-    <Card className="shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+    <Card className="shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-slate-800">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4 gap-3">
           <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+              {title}
+            </h3>
 
             {/* ✅ only render icon when provided */}
             {Icon ? (
