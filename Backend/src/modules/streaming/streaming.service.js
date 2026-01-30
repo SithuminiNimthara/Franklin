@@ -2,6 +2,16 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { config } from '../../config/env.js';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import { Camera } from '../cameras/camera.model.js';
+
+let ffmpegPath;
+try {
+    ffmpegPath = ffmpegInstaller.path;
+} catch (e) {
+    ffmpegPath = 'ffmpeg'; // fallback to system ffmpeg
+}
+console.log(`[Streaming] FFmpeg path: ${ffmpegPath}`);
 
 class StreamingService {
     constructor() {
@@ -10,68 +20,115 @@ class StreamingService {
     }
 
     init() {
-        // Ensure stream directory exists
         if (!fs.existsSync(config.streamDir)) {
             fs.mkdirSync(config.streamDir, { recursive: true });
         }
     }
 
-    startAllCameras() {
-        config.cameras.forEach(cam => this.startCamera(cam));
+    async startAllCameras() {
+        try {
+            console.log('[Streaming] Starting all enabled cameras from DB...');
+            const cameras = await Camera.find({ isEnabled: true });
+            for (const cam of cameras) {
+                this.startCamera({ id: cam._id.toString(), rtspUrl: cam.rtspUrl });
+            }
+        } catch (error) {
+            console.error('[Streaming] Start all error:', error);
+        }
     }
 
     startCamera(cam) {
+        if (this.processes.has(cam.id)) return;
+
         const outDir = path.join(config.streamDir, cam.id);
         if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
         const outPath = path.join(outDir, 'stream.m3u8');
 
+        // Audio-enabled FFmpeg arguments
         const args = [
             '-rtsp_transport', 'tcp',
             '-i', cam.rtspUrl,
-            '-fflags', 'nobuffer',
-            '-max_delay', '0',
+            '-map', '0:v:0',      // Map first video stream
+            '-map', '0:a:0?',     // Map first audio stream if it exists
             '-c:v', 'libx264',
             '-preset', 'veryfast',
             '-tune', 'zerolatency',
-            '-c:a', 'aac',
+            '-g', '50',
+            '-c:a', 'aac',        // Encode audio to AAC
+            '-b:a', '128k',       // Audio bitrate
+            '-ar', '44100',       // Audio sample rate
+            '-ac', '2',            // Stereo audio
             '-f', 'hls',
-            '-hls_time', '2',
-            '-hls_list_size', '3',
-            '-hls_flags', 'delete_segments+append_list',
+            '-hls_time', '4',
+            '-hls_list_size', '5',
+            '-hls_flags', 'delete_segments+append_list+independent_segments',
+            '-hls_segment_type', 'mpegts',
             '-hls_allow_cache', '0',
             outPath
         ];
 
-        const startFFmpeg = () => {
-            console.log(`Starting ffmpeg for ${cam.id}`);
-            const ff = spawn(config.ffmpegPath, args);
+        const startProcess = () => {
+            console.log(`[Streaming] Starting FFmpeg process for ${cam.id}`);
+            const ff = spawn(ffmpegPath, args);
 
-            ff.stdout.on('data', d => console.log(`[ffmpeg ${cam.id} stdout] ${d.toString()}`));
-            ff.stderr.on('data', d => console.log(`[ffmpeg ${cam.id} stderr] ${d.toString()}`));
+            ff.stderr.on('data', d => {
+                const msg = d.toString();
 
-            ff.on('error', (err) => {
-                console.error(`Failed to start ffmpeg for ${cam.id}:`, err);
+                // Audio detection logging
+                if (msg.includes('Audio:')) {
+                    console.log(`[Streaming Info ${cam.id}] Audio stream detected and being processed.`);
+                }
+
+                if (msg.toLowerCase().includes('error') || msg.toLowerCase().includes('fail')) {
+                    console.error(`[FFmpeg Error ${cam.id}] ${msg.trim()}`);
+                }
             });
 
             ff.on('exit', (code, signal) => {
-                console.warn(`ffmpeg for ${cam.id} exited code=${code} signal=${signal}, restarting in 1s...`);
-                // Clean up process tracking if needed, though we just restart here
-                setTimeout(startFFmpeg, 1000);
+                if (signal === 'SIGTERM' || signal === 'SIGINT') {
+                    console.log(`[Streaming] ${cam.id} process terminated manually.`);
+                    return;
+                }
+                console.warn(`[Streaming] ${cam.id} process exited with code ${code}. Restarting in 1s...`);
+                const timeout = setTimeout(startProcess, 1000);
+                this.processes.set(cam.id, { process: null, restartTimeout: timeout });
             });
 
-            this.processes.set(cam.id, ff);
+            this.processes.set(cam.id, { process: ff, restartTimeout: null });
         };
 
-        startFFmpeg();
+        startProcess();
+    }
+
+    stopCamera(cameraId) {
+        const entry = this.processes.get(cameraId);
+        if (entry) {
+            if (entry.restartTimeout) clearTimeout(entry.restartTimeout);
+            if (entry.process) entry.process.kill('SIGTERM');
+            this.processes.delete(cameraId);
+
+            // Cleanup HLS files
+            const camDir = path.join(config.streamDir, cameraId);
+            if (fs.existsSync(camDir)) {
+                fs.rmSync(camDir, { recursive: true, force: true });
+                console.log(`[Streaming] Cleaned up stream folder for ${cameraId}`);
+            }
+        }
     }
 
     getStreamPath(cameraId) {
-        // In a real scenario, this might return the file path or verify existence
         return path.join(config.streamDir, cameraId, 'stream.m3u8');
     }
 
-    getStreamDir() {
-        return config.streamDir;
+    getStreamingStatus() {
+        const statuses = [];
+        this.processes.forEach((val, key) => {
+            statuses.push({
+                cameraId: key,
+                status: val.process ? 'active' : 'restarting'
+            });
+        });
+        return statuses;
     }
 }
 

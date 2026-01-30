@@ -13,6 +13,7 @@ import healthRoutes from './modules/turtleHealth/health.routes.js';
 import hatcheryRoutes from './modules/hatchery/hatchery.routes.js';
 import alertsRoutes from './modules/alerts/alerts.routes.js';
 import profileRoutes from './modules/users/profile.routes.js';
+import cameraRoutes from './modules/cameras/camera.routes.js';
 
 
 const app = express();
@@ -30,21 +31,33 @@ app.use((req, res, next) => {
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization", "Range"],
+  exposedHeaders: ["Content-Length", "Content-Range"]
 }));
 app.use(express.json());
 
 
-// Initialize Database
-connectDB();
+// Initialize Database & Services
+const init = async () => {
+  await connectDB();
+  streamingService.startAllCameras();
+};
 
-// Initialize Services
-// streamingService.startAllCameras(); // Disabled for now as it was causing RTSP issues
+init();
 
 // Static Routes (Streaming)
 app.use('/streams', express.static(config.streamDir, {
-  setHeaders(res) {
+  setHeaders(res, filePath) {
     res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "Range, Authorization, Content-Type");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Range");
+
+    // Ensure correct MIME types for HLS
+    if (filePath.endsWith(".m3u8")) {
+      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    } else if (filePath.endsWith(".ts")) {
+      res.setHeader("Content-Type", "video/mp2t");
+    }
   },
 })
 );
@@ -60,6 +73,7 @@ app.use("/api/shoreline", shorelineRoutes);
 app.use("/api/hatchery", hatcheryRoutes);
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/cameras", cameraRoutes);
 
 
 // Root route
