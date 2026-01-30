@@ -27,6 +27,9 @@ export default function UploadAnalyzer() {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (e) => setProgress(Math.round((e.loaded * 100) / e.total)),
       });
+      
+      console.log("Upload response:", response.data); // Debug log
+      
       setVideoId(response.data.videoId);
       setStreamUrl(response.data.streamUrl);
       setUploadComplete(true);
@@ -40,12 +43,47 @@ export default function UploadAnalyzer() {
 
   useEffect(() => {
     if (!videoId || !showPlayer) return;
-    const interval = setInterval(() => {
-      fetch(`http://localhost:5001/data/upload_${videoId}`)
-        .then((res) => res.json())
-        .then((data) => { if (data.species) setAiStats(data); })
-        .catch(() => { });
-    }, 1000);
+    
+    console.log("Starting to poll for video ID:", videoId); // Debug log
+    
+    const interval = setInterval(async () => {
+      try {
+        // Option 1: Poll Python server directly
+        const pythonResponse = await fetch(`http://localhost:5001/data/upload_${videoId}`);
+        if (pythonResponse.ok) {
+          const data = await pythonResponse.json();
+          console.log("Python data:", data); // Debug log
+          if (data.species && data.species !== "Detecting...") {
+            setAiStats({
+              species: data.species || "Unknown",
+              status: data.behavior || data.status || "Analyzing...",
+              health: data.health || "Unknown"
+            });
+          }
+        }
+      } catch (pythonError) {
+        console.log("Python endpoint not ready, trying MongoDB..."); // Debug log
+        
+        // Option 2: Fallback to MongoDB (your backend)
+        try {
+          const backendResponse = await fetch(`http://localhost:5002/api/hatchery/video-analysis/${videoId}`);
+          if (backendResponse.ok) {
+            const mongoData = await backendResponse.json();
+            console.log("MongoDB data:", mongoData); // Debug log
+            if (mongoData.analysis) {
+              setAiStats({
+                species: mongoData.analysis.species || "Unknown",
+                status: mongoData.analysis.behavior || "Analyzing...",
+                health: mongoData.analysis.health || "Unknown"
+              });
+            }
+          }
+        } catch (backendError) {
+          console.error("Both endpoints failed:", { pythonError, backendError });
+        }
+      }
+    }, 2000); // Poll every 2 seconds (increased from 1 second to reduce load)
+    
     return () => clearInterval(interval);
   }, [videoId, showPlayer]);
 
@@ -61,8 +99,8 @@ export default function UploadAnalyzer() {
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-xl overflow-hidden">
       <div className="p-5 flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/30 border-b border-gray-100 dark:border-slate-800">
         <div>
-          <h3 className="text-sm font-black text-gray-800 dark:text-white uppercase tracking-widest">Behavior Diagnostics</h3>
-          <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase mt-0.5">Offline Video Processing</p>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Behavior Diagnostics</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-semibold mt-1">Offline Video Processing</p>
         </div>
 
         <div className="flex gap-2">
@@ -74,9 +112,9 @@ export default function UploadAnalyzer() {
           {!showPlayer && !uploading && (
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-md shadow-lg transition-all active:scale-95"
             >
-              <Upload className="w-3.5 h-3.5" />Upload Clip
+              <Upload className="w-4 h-4" />Upload Clip
             </button>
           )}
         </div>
@@ -86,7 +124,7 @@ export default function UploadAnalyzer() {
         {!uploading && !uploadComplete && !showPlayer && (
           <div className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl h-40 flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 bg-gray-50/50 dark:bg-slate-900/50">
             <Upload className="w-10 h-10 mb-2 opacity-20" />
-            <p className="text-[10px] font-black uppercase tracking-widest">Awaiting Footage</p>
+            <p className="text-md font-semibold">Awaiting Footage</p>
           </div>
         )}
 
@@ -107,11 +145,11 @@ export default function UploadAnalyzer() {
             <div className="bg-green-100 dark:bg-green-900/30 p-4 rounded-full"><CheckCircle className="w-10 h-10 text-green-500" /></div>
             <div className="text-center">
               <h4 className="text-xs font-black text-gray-800 dark:text-white uppercase tracking-widest">Buffer Synchronized</h4>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold mt-1">Ready for behavioral analysis</p>
+              <p className="text-md text-gray-500 dark:text-gray-400 font-bold mt-1">Ready for behavioral analysis</p>
             </div>
             <button
               onClick={() => setShowPlayer(true)}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95"
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-8 py-2.5 rounded-xl text-md font-semibold shadow-xl transition-all active:scale-95"
             >
               <Play className="w-4 h-4 fill-current" />Initiate Diagnostics
             </button>
@@ -123,7 +161,7 @@ export default function UploadAnalyzer() {
             <div className="relative mx-auto mb-6 bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-white dark:border-slate-800 max-w-[400px]">
               <div className="aspect-video w-full relative">
                 <img src={streamUrl} className="absolute inset-0 w-full h-full object-contain" alt="AI Analytics" />
-                <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-lg text-[8px] font-black text-white uppercase tracking-tighter">
+                <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-lg text-md font-semibold text-white">
                   <span className="h-1.5 w-1.5 bg-red-500 rounded-full animate-pulse" />Processing Buffer
                 </div>
               </div>
@@ -152,8 +190,8 @@ function MetricBox({ label, value, color }) {
 
   return (
     <div className={`p-4 rounded-xl border text-center ${colors[color] || colors.blue}`}>
-      <p className="text-[10px] font-black uppercase tracking-tighter opacity-70 mb-1">{label}</p>
-      <p className="text-sm font-black uppercase leading-tight truncate">{value}</p>
+      <p className="text-md font-semibold text-black opacity-70 mb-1">{label}</p>
+      <p className="text-sm font-black  truncate">{value}</p>
     </div>
   );
 }
