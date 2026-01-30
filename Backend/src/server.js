@@ -41,7 +41,7 @@ io.on("connection", (socket) => {
   console.log("Client connected for real-time alerts");
 });
 
-// Start server
-httpServer.listen(config.port, () => {
-  console.log(`Server running on http://localhost:${config.port}`);
+server.listen(config.port, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${config.port}`);
+    console.log(`Accessible on LAN at http://<YOUR_LAN_IP>:${config.port}`);
 });
