@@ -1,8 +1,8 @@
 // shorelineApi.js
 
-const RAW_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const RAW_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5002";
 
-// ✅ normalize base (prevents ":8000" and missing protocol)
+// ✅ normalize base (prevents ":5002" and missing protocol)
 export const API_BASE = (() => {
   let b = String(RAW_BASE || "").trim();
 
@@ -10,7 +10,7 @@ export const API_BASE = (() => {
   if (b && !b.startsWith("http://") && !b.startsWith("https://")) {
     b = `http://${b}`;
   }
-  if (!b) b = "http://localhost:8000";
+  if (!b) b = "http://localhost:5002";
 
   return b.replace(/\/+$/, "");
 })();
