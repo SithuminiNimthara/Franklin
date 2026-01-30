@@ -1,11 +1,17 @@
 import express from "express";
 import fs from "fs";
 import * as hatcheryController from "./hatchery.controller.js";
+import * as alertsController from "./hatchery.alerts.controller.js";
 import multer from "multer";
+import { clerkMiddleware, requireAuth } from "@clerk/express";
 
 const router = express.Router();
 
-// Multer Configuration
+// Apply Clerk middleware only if you really need it globally.
+// If Python calls /alerts/new with no auth, do NOT block it.
+router.use(clerkMiddleware());
+
+// Multer configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadPath = "uploads/hatchery";
@@ -21,7 +27,6 @@ const storage = multer.diskStorage({
   },
 });
 
-// File Filter (Only allow videos)
 const fileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith("video/")) {
     cb(null, true);
@@ -31,19 +36,58 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
+  storage,
+  fileFilter,
+  limits: { fileSize: 500 * 1024 * 1024 },
 });
 
-router.post("/upload", upload.single("video"), hatcheryController.uploadFootage);
+// MAIN HATCHERY ROUTES
+router.post(
+  "/upload",
+  //requireAuth(),
+  upload.single("video"),
+  hatcheryController.uploadFootage,
+);
 router.get("/video/:filename", hatcheryController.streamVideo);
 router.post("/video/:videoId/analysis", hatcheryController.updateVideoAnalysis);
 router.get("/stats/:tankId", hatcheryController.getTankStats);
+router.get(
+  "/report/hatchery",
+  requireAuth(),
+  hatcheryController.generateHatcheryReport,
+);
+
 router.post("/alerts/new", hatcheryController.saveAlert);
+
 router.get("/alerts", hatcheryController.getAlerts);
-router.patch("/alerts/:alertId", hatcheryController.updateAlertStatus);  
-//router.delete("/alerts/:alertId", hatcheryController.deleteAlert);
-router.get("/report/hatchery", hatcheryController.generateHatcheryReport);
+
+router.patch(
+  "/alerts/:alertId",
+  requireAuth(),
+  hatcheryController.updateAlertStatus,
+);
+
+// Manual email trigger from dashboard (button)
+router.post(
+  "/alerts/:alertId/send-email",
+  requireAuth(),
+  alertsController.sendHatcheryEmailAlert,
+);
+
+router.get("/video-analysis/:videoId", async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const video = await HatcheryVideo.findById(videoId);
+
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+
+    res.json(video);
+  } catch (error) {
+    console.error("Error fetching video analysis:", error);
+    res.status(500).json({ error: "Failed to fetch video analysis" });
+  }
+});
 
 export default router;
