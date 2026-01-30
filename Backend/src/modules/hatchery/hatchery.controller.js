@@ -3,12 +3,14 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { HatcheryVideo, HatcheryAlert } from "./hatchery.models.js";
+import { sendAlertToActiveUsers } from "./hatchery.alerts.controller.js";
+
 
 // Helper to get root directory
 const __filename = fileURLToPath(import.meta.url);
 const rootDir = path.join(path.dirname(__filename), "../../../");
 
-// Update video analysis (called by Python)
+// Update video analysis
 export const updateVideoAnalysis = async (req, res) => {
   try {
     const { videoId } = req.params;
@@ -121,27 +123,35 @@ export const streamVideo = (req, res) => {
 // Save a new alert sent from Python
 export const saveAlert = async (req, res) => {
   try {
-    console.log("📥 Incoming alert:", req.body);
+    //console.log("Incoming alert:", req.body);
 
+    // 1. Save alert to database
     const alert = new HatcheryAlert(req.body);
     await alert.save();
+    //console.log(`Alert saved to MongoDB: ${alert._id} - ${alert.message}`);
 
-    // console.log(`Alert saved to MongoDB: ${alert._id} - ${alert.message}`);
+    // 2. Send email (non-blocking, will not break API response)
+    sendAlertToActiveUsers(alert)
+      .then((count) => console.log(`Alert emails sent to ${count} user(s)`))
+      .catch((err) => console.error("Email failed (non-critical):", err.message));
+
+    // 3. Respond IMMEDIATELY (frontend expects this)
     res.status(201).json({ success: true, data: alert });
   } catch (error) {
-    console.error("Failed to save alert:", error);
+    //console.error("Failed to save alert:", error);
     res.status(500).json({ error: "Failed to save alert" });
   }
 };
 
 // Get all alerts (Past & Present)
 export const getAlerts = async (req, res) => {
+  
   try {
     const alerts = await HatcheryAlert.find().sort({ createdAt: -1 });
-    // console.log(` Returning ${alerts.length} alerts`);
+    //console.log(`Returning ${alerts.length} alerts`);  
     res.json(alerts);
   } catch (error) {
-    console.error("Failed to fetch alerts:", error);
+    //console.error("getAlerts failed:", error);
     res.status(500).json({ error: "Failed to fetch alerts" });
   }
 };
