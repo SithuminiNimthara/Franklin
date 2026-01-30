@@ -1,7 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-// Validate critical environment variables
 if (
   !process.env.CLERK_SECRET_KEY ||
   process.env.CLERK_SECRET_KEY.includes("REPLACE")
@@ -23,25 +22,30 @@ import { config } from "./config/env.js";
 
 import { notificationService } from "./modules/notifications/notification.service.js";
 
-// Create HTTP server using Express app
-const httpServer = http.createServer(app);
+const server = http.createServer(app);
 
-// ✅ Export io so controllers can import it
-export const io = new Server(httpServer, {
+// ✅ IMPORTANT: Export io so other modules can import it
+export const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
   },
 });
 
-// Pass io to notification service
+// ✅ Pass io to notification service
 notificationService.setSocketIO(io);
 
+// ✅ Socket connect log
 io.on("connection", (socket) => {
-  console.log("Client connected for real-time alerts");
+  console.log("Client connected for real-time alerts:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
 });
 
+// ✅ Start server
 server.listen(config.port, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${config.port}`);
-    console.log(`Accessible on LAN at http://<YOUR_LAN_IP>:${config.port}`);
+  console.log(`Server running on http://localhost:${config.port}`);
+  console.log(`Accessible on LAN at http://<YOUR_LAN_IP>:${config.port}`);
 });
