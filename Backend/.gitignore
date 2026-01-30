@@ -21,5 +21,7 @@ dist-ssr
 *.sln
 *.sw?
 
-
+# All env files
+.env
+.env.*
 
