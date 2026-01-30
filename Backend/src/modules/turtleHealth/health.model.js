@@ -22,6 +22,10 @@ const turtleHealthSchema = new mongoose.Schema({
     imageUrl: {
         type: String // Optional: if we store the image path
     },
+    location: {
+        lat: Number,
+        lng: Number
+    },
     notes: String
 });
 

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Activity, AlertCircle, CheckCircle, Image, X } from 'lucide-react';
+import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin } from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
+import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
 
 function HealthStats() {
   const [stats, setStats] = useState(null);
@@ -49,6 +50,7 @@ export default function TurtleHealthPage() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [location, setLocation] = useState(null);
   const fileInputRef = useRef(null);
 
   const handleFileSelect = (event) => {
@@ -70,6 +72,9 @@ export default function TurtleHealthPage() {
 
   const analyzeImage = async () => {
     if (!selectedImage) return;
+
+    // Optional: Validate location
+    // if (!location) { alert("Please pin point the location first."); return; }
 
     setIsAnalyzing(true);
     setAnalysisResult(null);
@@ -94,6 +99,7 @@ export default function TurtleHealthPage() {
           diagnosisClass: data.class,
           confidence: data.confidence,
           probabilities: data.probabilities,
+          location: location,
           notes: 'Auto-saved from diagnostics'
         })
       });
@@ -150,6 +156,18 @@ export default function TurtleHealthPage() {
                   )}
                 </div>
               )}
+
+              {/* Location Picker */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-4 w-4 text-gray-500" />
+                  <p className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest">Location Pinpoint</p>
+                </div>
+                <div className="h-64 rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-sm relative z-0">
+                  <GoogleMapPicker onLocationSelect={setLocation} />
+                </div>
+                {location && <p className="text-[10px] text-gray-400 text-right">Selected: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</p>}
+              </div>
 
               {analysisResult && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
