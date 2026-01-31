@@ -50,7 +50,7 @@ export const updateVideoAnalysis = async (req, res) => {
 export const getTankStats = async (req, res) => {
   const { tankId } = req.params;
   try {
-    const response = await axios.get(`${config.models.hatchery}/data/${tankId}`);
+    const response = await axios.get(`${config.models.hatchery}/ai/hatchery/data/${tankId}`);
     res.json(response.data);
   } catch (error) {
     console.error("Error fetching tank stats:", error.message);
@@ -84,7 +84,7 @@ export const uploadFootage = async (req, res) => {
     await newVideo.save();
 
     // 2. Register video with Python AI
-    await axios.post(`${config.models.hatchery}/register_upload`, {
+    await axios.post(`${config.models.hatchery}/ai/hatchery/register_upload`, {
       videoId: `upload_${newVideo._id}`,
       videoPath: videoUrl,
     });
@@ -93,7 +93,7 @@ export const uploadFootage = async (req, res) => {
     res.status(201).json({
       message: "Upload successful",
       videoId: newVideo._id,
-      streamUrl: `${config.models.hatchery}/stream/upload_${newVideo._id}`,
+      streamUrl: `${config.models.hatchery}/ai/hatchery/stream/upload_${newVideo._id}`,
       rawVideoUrl: videoUrl,
     });
 
@@ -203,7 +203,7 @@ export const generateHatcheryReport = async (req, res) => {
     const tankIds = ["tankA", "tankB", "tankC", "tankD"];
     const tankDataPromises = tankIds.map((tankId) =>
       axios
-        .get(`${config.models.hatchery}/data/${tankId}`)
+        .get(`${config.models.hatchery}/ai/hatchery/data/${tankId}`)
         .then((response) => {
           // console.log(`Fetched data for ${tankId}:`, response.data);
           return { tankId, ...response.data };
