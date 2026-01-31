@@ -30,7 +30,7 @@ app.use((req, res, next) => {
 
 // Middleware
 app.use(cors({
-  origin: "*",
+  origin: config.frontendUrl,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "Range"],
   exposedHeaders: ["Content-Length", "Content-Range"]
@@ -41,7 +41,12 @@ app.use(express.json());
 // Initialize Database & Services
 const init = async () => {
   await connectDB();
-  streamingService.startAllCameras();
+  if (config.streamingEnabled) {
+    console.log("Streaming is enabled. Starting cameras...");
+    streamingService.startAllCameras();
+  } else {
+    console.log("Streaming is disabled via config.");
+  }
 };
 
 init();
@@ -76,6 +81,11 @@ app.use("/api/hatchery", hatcheryRoutes);
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/cameras", cameraRoutes);
+
+// Health route
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "OK", timestamp: new Date() });
+});
 
 // Root route
 app.get("/", (req, res) => {

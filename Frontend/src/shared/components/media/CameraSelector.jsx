@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Camera, ChevronDown, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@clerk/clerk-react';
+import { API_BASE_URL } from '../../shared/config';
 
 export default function CameraSelector({ onSelect, activeCameraId }) {
     const { getToken } = useAuth();
@@ -9,7 +10,7 @@ export default function CameraSelector({ onSelect, activeCameraId }) {
     const [loading, setLoading] = useState(true);
     const [isOpen, setIsOpen] = useState(false);
 
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+    const API_BASE = API_BASE_URL.replace(/\/api$/, '');
 
     useEffect(() => {
         fetchCameras();

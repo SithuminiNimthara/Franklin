@@ -267,3 +267,8 @@ async def predict_video(file: UploadFile = File(...)):
                 os.remove(tmp_path)
         except Exception:
             pass
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 9000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

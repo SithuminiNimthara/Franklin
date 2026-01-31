@@ -1,6 +1,6 @@
 // shorelineApi.js
 
-const RAW_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5002";
+const RAW_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5002";
 
 // ✅ normalize base (prevents ":5002" and missing protocol)
 export const API_BASE = (() => {

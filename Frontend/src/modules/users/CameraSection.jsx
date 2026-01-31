@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '@clerk/clerk-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
+import { API_BASE_URL } from '../../shared/config';
 
 export default function CameraSection() {
     const { getToken } = useAuth();
@@ -13,7 +14,7 @@ export default function CameraSection() {
     const [newCamera, setNewCamera] = useState({ name: '', ipAddress: '' });
     const [showAddForm, setShowAddForm] = useState(false);
 
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+    const API_BASE = API_BASE_URL.replace(/\/api$/, '');
 
     useEffect(() => {
         fetchCameras();
