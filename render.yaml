@@ -1,10 +1,11 @@
 services:
-  # 1. Frontend (Static Site)
-  - type: static
+  # 1) Frontend (Static Site)
+  - type: web
     name: franklin-frontend
-    env: static
+    runtime: static
+    rootDir: Frontend
     buildCommand: npm install && npm run build
-    publishPath: Frontend/dist
+    staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE_URL
         fromService:
@@ -33,30 +34,38 @@ services:
           name: model-hatchery
           property: url
 
-  # 2. Backend (Web Service)
+  # 2) Backend (Node Web Service)
   - type: web
     name: franklin-backend
-    env: node
+    runtime: node
     plan: starter
+    rootDir: Backend
     buildCommand: npm install
     startCommand: node src/server.js
-    rootDir: Backend
     envVars:
       - key: MONGO_URI
         sync: false
+
+      # Allow CORS to your frontend domain (you should use this in backend CORS)
       - key: FRONTEND_URL
         fromService:
-          type: static
+          type: web
           name: franklin-frontend
           property: url
+
+      # Disable LAN RTSP streaming on Render (cloud can't reach 192.168.x.x)
       - key: STREAMING_ENABLED
         value: "false"
+
+      # Public backend API base (sometimes useful in Python callbacks)
       - key: NODE_BACKEND_URL
         fromService:
           type: web
           name: franklin-backend
           property: url
         suffix: /api
+
+      # Python services URLs
       - key: PY_UNIFIED_URL
         fromService:
           type: web
@@ -77,6 +86,8 @@ services:
           type: web
           name: model-hatchery
           property: url
+
+      # Secrets (set manually in Render)
       - key: CLERK_SECRET_KEY
         sync: false
       - key: SMTP_USER
@@ -84,13 +95,16 @@ services:
       - key: SMTP_PASS
         sync: false
 
-  # 3. Model Services (Python)
+  # 3) Model Services (Python)
+
+  # 3.1) Unified Backend (FastAPI)
   - type: web
     name: model-unified
-    env: python
+    runtime: python
     plan: starter
+    rootDir: Models/Unified_Backend
     buildCommand: pip install fastapi uvicorn python-multipart requests opencv-python-headless numpy ultralytics
-    startCommand: cd Models/Unified_Backend && uvicorn app:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: NODE_BACKEND_URL
         fromService:
@@ -99,25 +113,28 @@ services:
           property: url
         suffix: /api/detections
 
+  # 3.2) Disease Detection (FastAPI)
   - type: web
     name: model-disease
-    env: python
+    runtime: python
     plan: starter
     rootDir: Models/Disease_Detection
     buildCommand: pip install fastapi uvicorn python-multipart opencv-python-headless numpy tensorflow keras pillow
     startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
 
+  # 3.3) Shoreline Segmentation (FastAPI)
   - type: web
     name: model-shoreline
-    env: python
+    runtime: python
     plan: starter
     rootDir: Models/Shoreline_Segmentation_Backend
     buildCommand: pip install fastapi uvicorn python-multipart opencv-python-headless numpy ultralytics python-dotenv
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
 
+  # 3.4) Hatchery Detection (Flask)
   - type: web
     name: model-hatchery
-    env: python
+    runtime: python
     plan: starter
     rootDir: Models/Hatchery_Detection
     buildCommand: pip install flask flask-cors requests opencv-python-headless numpy ultralytics
