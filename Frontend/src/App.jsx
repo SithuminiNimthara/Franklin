@@ -4,6 +4,7 @@ import { SignedIn, SignedOut, RedirectToSignIn, SignIn, SignUp, useAuth } from "
 import axios from "axios";
 import { Bell, User as UserIcon } from "lucide-react";
 import { useTheme } from "./shared/ThemeContext";
+import { API_BASE_URL } from "./shared/config";
 import Navigation from "./shared/components/layout/Navigation";
 import AlertsPanel from "./shared/components/layout/AlertsPanel";
 import HomePage from "./modules/dashboard/HomePage";
@@ -36,7 +37,7 @@ const DashboardLayout = () => {
       try {
         const token = await getToken();
         if (token) {
-          const response = await axios.get("http://localhost:5002/api/profile/me/settings", {
+          const response = await axios.get(`${API_BASE_URL}/profile/me/settings`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           const profileTheme = response.data?.preferences?.theme;

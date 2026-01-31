@@ -10,13 +10,17 @@ from ultralytics import YOLO
 from collections import defaultdict, deque, Counter
 
 app = Flask(__name__)
-CORS(app)  
+CORS(app)
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok", "service": "Hatchery AI Detection"}), 200
 
 # CONFIG
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "best.pt")
 VIDEO_DIR = os.path.join(BASE_DIR, "test_videos")
-NODE_API_URL = "http://localhost:5002/api/hatchery"
+NODE_API_URL = os.environ.get("NODE_API_URL", "http://localhost:5002/api/hatchery")
 
 # CONSTANTS
 PIXELS_PER_CM = 25.0
@@ -209,7 +213,7 @@ class VideoController:
         print(f"\nRegistering upload: {video_id}")
         print(f"Video path: {path}")
         
-        if not os.path.exists(path):
+        if not path.startswith("http") and not os.path.exists(path):
             print(f"Video file not found: {path}")
             return False
         
@@ -543,4 +547,5 @@ if __name__ == "__main__":
     print("Sea Turtle Hatchery AI Monitor")
     print("Multi-Parameter Behavioral Analysis System")
     print("="*50 + "\n")
-    app.run(host="0.0.0.0", port=5001, threaded=True, debug=False)
+    port = int(os.environ.get("PORT", 5001))
+    app.run(host="0.0.0.0", port=port, threaded=True, debug=False)

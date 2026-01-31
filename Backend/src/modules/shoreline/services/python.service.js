@@ -1,4 +1,4 @@
-const PY_INFER_URL = process.env.PY_INFER_URL || "http://localhost:9000";
+const PY_INFER_URL = process.env.PY_SHORELINE_URL || process.env.PY_INFER_URL || "http://localhost:9000";
 
 export async function predictViaPython(buffer, filename, mimetype) {
   // ✅ prove what runtime objects you have
@@ -31,7 +31,7 @@ export async function predictViaPython(buffer, filename, mimetype) {
   let json = null;
   try {
     json = JSON.parse(text);
-  } catch {}
+  } catch { }
 
   return { status: res.status, body: json ?? { detail: text } };
 }

@@ -1,0 +1,131 @@
+services:
+  # 1. Frontend (Static Site)
+  - type: static
+    name: franklin-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    publishPath: Frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: franklin-backend
+          property: url
+        suffix: /api
+      - key: VITE_MODEL_UNIFIED_URL
+        fromService:
+          type: web
+          name: model-unified
+          property: url
+      - key: VITE_MODEL_DISEASE_URL
+        fromService:
+          type: web
+          name: model-disease
+          property: url
+      - key: VITE_MODEL_SHORELINE_URL
+        fromService:
+          type: web
+          name: model-shoreline
+          property: url
+      - key: VITE_MODEL_HATCHERY_URL
+        fromService:
+          type: web
+          name: model-hatchery
+          property: url
+
+  # 2. Backend (Web Service)
+  - type: web
+    name: franklin-backend
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: node src/server.js
+    rootDir: Backend
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: FRONTEND_URL
+        fromService:
+          type: static
+          name: franklin-frontend
+          property: url
+      - key: STREAMING_ENABLED
+        value: "false"
+      - key: NODE_BACKEND_URL
+        fromService:
+          type: web
+          name: franklin-backend
+          property: url
+        suffix: /api
+      - key: PY_UNIFIED_URL
+        fromService:
+          type: web
+          name: model-unified
+          property: url
+      - key: PY_DISEASE_URL
+        fromService:
+          type: web
+          name: model-disease
+          property: url
+      - key: PY_SHORELINE_URL
+        fromService:
+          type: web
+          name: model-shoreline
+          property: url
+      - key: PY_HATCHERY_URL
+        fromService:
+          type: web
+          name: model-hatchery
+          property: url
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+
+  # 3. Model Services (Python)
+  - type: web
+    name: model-unified
+    env: python
+    plan: starter
+    buildCommand: pip install fastapi uvicorn python-multipart requests opencv-python-headless numpy ultralytics
+    startCommand: cd Models/Unified_Backend && uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NODE_BACKEND_URL
+        fromService:
+          type: web
+          name: franklin-backend
+          property: url
+        suffix: /api/detections
+
+  - type: web
+    name: model-disease
+    env: python
+    plan: starter
+    rootDir: Models/Disease_Detection
+    buildCommand: pip install fastapi uvicorn python-multipart opencv-python-headless numpy tensorflow keras pillow
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+
+  - type: web
+    name: model-shoreline
+    env: python
+    plan: starter
+    rootDir: Models/Shoreline_Segmentation_Backend
+    buildCommand: pip install fastapi uvicorn python-multipart opencv-python-headless numpy ultralytics python-dotenv
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+
+  - type: web
+    name: model-hatchery
+    env: python
+    plan: starter
+    rootDir: Models/Hatchery_Detection
+    buildCommand: pip install flask flask-cors requests opencv-python-headless numpy ultralytics
+    startCommand: python ai_server.py
+    envVars:
+      - key: NODE_API_URL
+        fromService:
+          type: web
+          name: franklin-backend
+          property: url
+        suffix: /api/hatchery
