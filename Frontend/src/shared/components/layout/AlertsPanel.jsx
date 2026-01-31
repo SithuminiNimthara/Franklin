@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Clock, MapPin, X, CheckCircle, User, ShieldAlert } from 'lucide-react';
-import { API_BASE_URL } from "../../shared/config";
+import { API_BASE_URL } from "../../config";
 
 export default function AlertsPanel({ isOpen, onClose }) {
   const [alerts, setAlerts] = useState([]);
