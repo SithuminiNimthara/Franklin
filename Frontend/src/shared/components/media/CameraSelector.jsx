@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Camera, ChevronDown, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@clerk/clerk-react';
-import { API_BASE_URL } from '../../shared/config';
+import { API_BASE_URL } from '../../config';
 
 export default function CameraSelector({ onSelect, activeCameraId }) {
     const { getToken } = useAuth();
