@@ -7,34 +7,19 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
+      # SET MANUALLY AFTER DEPLOY
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: franklin-backend
-          property: url
-        suffix: /api
+        sync: false
       - key: VITE_MODEL_UNIFIED_URL
-        fromService:
-          type: web
-          name: model-unified
-          property: url
+        sync: false
       - key: VITE_MODEL_DISEASE_URL
-        fromService:
-          type: web
-          name: model-disease
-          property: url
+        sync: false
       - key: VITE_MODEL_SHORELINE_URL
-        fromService:
-          type: web
-          name: model-shoreline
-          property: url
+        sync: false
       - key: VITE_MODEL_HATCHERY_URL
-        fromService:
-          type: web
-          name: model-hatchery
-          property: url
+        sync: false
 
-  # 2) Backend (Node Web Service)
+  # 2) Backend (Node API)
   - type: web
     name: franklin-backend
     runtime: node
@@ -46,48 +31,21 @@ services:
       - key: MONGO_URI
         sync: false
 
-      # Allow CORS to your frontend domain (you should use this in backend CORS)
-      - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: franklin-frontend
-          property: url
-
-      # Disable LAN RTSP streaming on Render (cloud can't reach 192.168.x.x)
       - key: STREAMING_ENABLED
         value: "false"
 
-      # Public backend API base (sometimes useful in Python callbacks)
-      - key: NODE_BACKEND_URL
-        fromService:
-          type: web
-          name: franklin-backend
-          property: url
-        suffix: /api
-
-      # Python services URLs
+      # PUBLIC URLS – SET AFTER DEPLOY
+      - key: FRONTEND_URL
+        sync: false
       - key: PY_UNIFIED_URL
-        fromService:
-          type: web
-          name: model-unified
-          property: url
+        sync: false
       - key: PY_DISEASE_URL
-        fromService:
-          type: web
-          name: model-disease
-          property: url
+        sync: false
       - key: PY_SHORELINE_URL
-        fromService:
-          type: web
-          name: model-shoreline
-          property: url
+        sync: false
       - key: PY_HATCHERY_URL
-        fromService:
-          type: web
-          name: model-hatchery
-          property: url
+        sync: false
 
-      # Secrets (set manually in Render)
       - key: CLERK_SECRET_KEY
         sync: false
       - key: SMTP_USER
@@ -95,9 +53,7 @@ services:
       - key: SMTP_PASS
         sync: false
 
-  # 3) Model Services (Python)
-
-  # 3.1) Unified Backend (FastAPI)
+  # 3) Unified AI (FastAPI)
   - type: web
     name: model-unified
     runtime: python
@@ -105,15 +61,8 @@ services:
     rootDir: Models/Unified_Backend
     buildCommand: pip install fastapi uvicorn python-multipart requests opencv-python-headless numpy ultralytics
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: NODE_BACKEND_URL
-        fromService:
-          type: web
-          name: franklin-backend
-          property: url
-        suffix: /api/detections
 
-  # 3.2) Disease Detection (FastAPI)
+  # 4) Disease Detection (FastAPI)
   - type: web
     name: model-disease
     runtime: python
@@ -122,7 +71,7 @@ services:
     buildCommand: pip install fastapi uvicorn python-multipart opencv-python-headless numpy tensorflow keras pillow
     startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
 
-  # 3.3) Shoreline Segmentation (FastAPI)
+  # 5) Shoreline Segmentation (FastAPI)
   - type: web
     name: model-shoreline
     runtime: python
@@ -131,7 +80,7 @@ services:
     buildCommand: pip install fastapi uvicorn python-multipart opencv-python-headless numpy ultralytics python-dotenv
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
 
-  # 3.4) Hatchery Detection (Flask)
+  # 6) Hatchery Detection (Flask)
   - type: web
     name: model-hatchery
     runtime: python
@@ -139,10 +88,3 @@ services:
     rootDir: Models/Hatchery_Detection
     buildCommand: pip install flask flask-cors requests opencv-python-headless numpy ultralytics
     startCommand: python ai_server.py
-    envVars:
-      - key: NODE_API_URL
-        fromService:
-          type: web
-          name: franklin-backend
-          property: url
-        suffix: /api/hatchery
