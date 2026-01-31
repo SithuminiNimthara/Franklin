@@ -10,10 +10,10 @@ export const config = {
     streamDir: path.join(process.cwd(), 'streams'),
     streamingEnabled: process.env.STREAMING_ENABLED === 'true',
     models: {
-        unified: process.env.PY_UNIFIED_URL || "http://localhost:8000",
-        disease: process.env.PY_DISEASE_URL || "http://localhost:8001",
-        shoreline: process.env.PY_SHORELINE_URL || "http://localhost:9000",
-        hatchery: process.env.PY_HATCHERY_URL || "http://localhost:5001"
+        unified: process.env.AI_SERVICE_URL || "http://localhost:8000",
+        disease: process.env.AI_SERVICE_URL || "http://localhost:8000",
+        shoreline: process.env.AI_SERVICE_URL || "http://localhost:8000",
+        hatchery: process.env.AI_SERVICE_URL || "http://localhost:8000"
     },
     smtp: {
         host: process.env.SMTP_HOST || 'smtp.gmail.com',

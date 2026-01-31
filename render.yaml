@@ -23,7 +23,7 @@ services:
   - type: web
     name: franklin-backend
     runtime: node
-    plan: starter
+    plan: free # Explicitly requested free tier
     rootDir: Backend
     buildCommand: npm install
     startCommand: node src/server.js
@@ -53,38 +53,16 @@ services:
       - key: SMTP_PASS
         sync: false
 
-  # 3) Unified AI (FastAPI)
+  # 3) Franklin AI Service (Merged Python)
   - type: web
-    name: model-unified
+    name: franklin-ai
     runtime: python
-    plan: starter
-    rootDir: Models/Unified_Backend
-    buildCommand: pip install fastapi uvicorn python-multipart requests opencv-python-headless numpy ultralytics
+    plan: free # Explicitly requested free tier
+    rootDir: Models/AI_Service
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
-
-  # 4) Disease Detection (FastAPI)
-  - type: web
-    name: model-disease
-    runtime: python
-    plan: starter
-    rootDir: Models/Disease_Detection
-    buildCommand: pip install fastapi uvicorn python-multipart opencv-python-headless numpy tensorflow keras pillow
-    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
-
-  # 5) Shoreline Segmentation (FastAPI)
-  - type: web
-    name: model-shoreline
-    runtime: python
-    plan: starter
-    rootDir: Models/Shoreline_Segmentation_Backend
-    buildCommand: pip install fastapi uvicorn python-multipart opencv-python-headless numpy ultralytics python-dotenv
-    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
-
-  # 6) Hatchery Detection (Flask)
-  - type: web
-    name: model-hatchery
-    runtime: python
-    plan: starter
-    rootDir: Models/Hatchery_Detection
-    buildCommand: pip install flask flask-cors requests opencv-python-headless numpy ultralytics
-    startCommand: python ai_server.py
+    envVars:
+      - key: NODE_BACKEND_URL
+        sync: false
+      - key: AI_SERVICE_URL
+        sync: false

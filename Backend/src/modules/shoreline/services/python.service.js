@@ -1,4 +1,4 @@
-const PY_INFER_URL = process.env.PY_SHORELINE_URL || process.env.PY_INFER_URL || "http://localhost:9000";
+const PY_INFER_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
 export async function predictViaPython(buffer, filename, mimetype) {
   // ✅ prove what runtime objects you have
@@ -18,7 +18,7 @@ export async function predictViaPython(buffer, filename, mimetype) {
 
   form.append("file", blob, filename || "image.jpg");
 
-  const res = await fetch(`${PY_INFER_URL}/predict`, {
+  const res = await fetch(`${PY_INFER_URL}/ai/shoreline/predict`, {
     method: "POST",
     body: form,
     // ❌ DO NOT set headers here
