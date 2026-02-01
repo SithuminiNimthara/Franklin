@@ -1,12 +1,9 @@
-fastapi
-uvicorn
-python-multipart
-ultralytics
-opencv-python-headless
-numpy
-requests
-tensorflow
-keras
-pillow
-python-dotenv
-flask  # Only if needed for internal logic, but we'll try to remove it
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9
+numpy==1.26.4
+opencv-python-headless==4.9.0.80
+requests==2.32.3
+pillow==10.4.0
+python-dotenv==1.0.1
+ultralytics==8.1.0
