@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { readJson, writeJson, nowIso, ensureDir } from "./utils/file.util.js";
 import { clamp } from "./utils/geo.util.js";
 import { uid } from "./utils/id.util.js";
+import { getUserPrimaryEmail } from "./utils/clerk.util.js";
 
 import { predictViaPython } from "./services/python.service.js";
 import { evaluateRisk } from "./services/risk.service.js";
@@ -325,9 +326,12 @@ export async function evaluateOffline(req, res) {
     let createdAlert = null;
 
     if (finalRisk === "high") {
-      const cooldownKey = evaluation.boundaryCrossed
+      const baseKey = evaluation.boundaryCrossed
         ? "shoreline_boundary_crossed"
         : "shoreline_nests_at_risk";
+
+      const userId = req.auth?.userId || "anon"; // 👈 logged-in user
+      const cooldownKey = `${userId}_${baseKey}`; // 👈 per-user cooldown
 
       createdAlert = await Alert.create({
         type: "shoreline",
@@ -337,7 +341,7 @@ export async function evaluateOffline(req, res) {
           : "Shoreline close to turtle nests",
         status: "new",
         source: "offline_image",
-        cooldownKey, // ✅ add this
+        cooldownKey, // ✅ UPDATED HERE
         details: {
           evaluation,
           bufferPct,
@@ -349,7 +353,6 @@ export async function evaluateOffline(req, res) {
             shoreline_conf: body.shoreline_conf ?? null,
             notes: body.notes ?? null,
           },
-
           environment,
           envScore,
           visionScore,
@@ -365,11 +368,17 @@ export async function evaluateOffline(req, res) {
       } catch (e) {
         console.warn("Socket emit failed:", e?.message || e);
       }
-
-      // ✅ EMAIL notify (with cooldown protection)
+      // ✅ EMAIL notify (send to logged-in user's email)
       try {
-        const emailResult = await notifyIfAllowed({ alertDoc: createdAlert });
-        console.log("Email notify result:", emailResult);
+        const userId = req.auth?.userId || req.userId || null;
+        const userEmail = await getUserPrimaryEmail(userId);
+
+        const emailResult = await notifyIfAllowed({
+          alertDoc: createdAlert,
+          recipients: userEmail ? [userEmail] : [], // override
+        });
+
+        console.log("Email notify result:", emailResult, { userEmail, userId });
       } catch (e) {
         console.warn("Email notify failed:", e?.message || e);
       }
