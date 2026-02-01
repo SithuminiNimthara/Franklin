@@ -1,7 +1,15 @@
-// Config updated to prevent direct AI calls
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5002/api";
-// These should ideally be proxied via backend, but if needed:
-export const UNIFIED_MODEL_URL = import.meta.env.VITE_AI_SERVICE_URL || "http://localhost:8000";
-export const DISEASE_MODEL_URL = import.meta.env.VITE_AI_SERVICE_URL || "http://localhost:8000";
-export const SHORELINE_MODEL_URL = import.meta.env.VITE_AI_SERVICE_URL || "http://localhost:8000";
-export const HATCHERY_MODEL_URL = import.meta.env.VITE_AI_SERVICE_URL || "http://localhost:8000";
+// Centralized API Configuration
+// Ensure VITE_API_BASE_URL is set in .env for production (e.g., https://franklin-backend.onrender.com)
+
+const cleanUrl = (url) => (url ? url.replace(/\/+$/, "") : "");
+
+export const API_BASE_URL = cleanUrl(import.meta.env.VITE_API_BASE_URL) || "http://localhost:5002";
+
+// Helper to build consistent Stream/Data URLs (Proxied via Backend)
+export const getStreamUrl = (tankId) => `${API_BASE_URL}/stream/${tankId}`;
+export const getHatcheryDataUrl = (tankId) => `${API_BASE_URL}/data/${tankId}`;
+
+// Generic API URL builder
+export const getApiUrl = (endpoint) =>
+    `${API_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
+
