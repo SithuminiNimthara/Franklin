@@ -4,6 +4,7 @@ import { Bell, Turtle, Layers, Heart, Database } from "lucide-react";
 import TankVideoCard from "../../shared/components/ui/TankVideoCard";
 import UploadAnalyzer from "../../shared/components/ui/UploadAnalyzer";
 import StatSummaryCard from "../../shared/components/ui/StatSummaryCard";
+import { API_BASE_URL } from "../../shared/config";
 
 export default function HatcheryPage() {
   const [alerts, setAlerts] = useState([]);
@@ -21,7 +22,7 @@ export default function HatcheryPage() {
 
   useEffect(() => {
     const fetchTodayAlerts = () => {
-      fetch("http://localhost:5002/api/hatchery/alerts")
+      fetch(`${API_BASE_URL}/hatchery/alerts`)
         .then((res) => res.json())
         .then((data) => {
           const today = new Date().toDateString();

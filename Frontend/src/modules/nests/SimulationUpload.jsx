@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, FileVideo, Play, Loader, CheckCircle, RefreshCcw } from 'lucide-react';
+import { UNIFIED_MODEL_URL } from '../../shared/config';
 
 export default function SimulationUpload({ onSimulationComplete, onClear }) {
     const [file, setFile] = useState(null);
@@ -22,7 +23,7 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
         formData.append('file', file);
 
         try {
-            const response = await fetch('http://localhost:8000/analyze', {
+            const response = await fetch(`${UNIFIED_MODEL_URL}/analyze`, {
                 method: 'POST',
                 body: formData,
             });

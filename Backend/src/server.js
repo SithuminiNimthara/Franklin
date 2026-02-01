@@ -1,7 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-// Validate critical environment variables
 if (
   !process.env.CLERK_SECRET_KEY ||
   process.env.CLERK_SECRET_KEY.includes("REPLACE")
@@ -37,6 +36,7 @@ export const io = new SocketIOServer(httpServer, {
 // ✅ Pass io to notification service
 notificationService.setSocketIO(io);
 
+// ✅ Socket connect log
 io.on("connection", (socket) => {
   console.log("🟢 Client connected for real-time alerts:", socket.id);
 
