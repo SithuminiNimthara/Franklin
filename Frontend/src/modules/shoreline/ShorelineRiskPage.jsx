@@ -26,8 +26,8 @@ const DEMO_VIDEO_NAME = "shoreline_demo.mp4";
 
 function nestStatusFromDistance(d) {
   if (d == null) return "safe";
-  if (d <= 3) return "danger";
-  if (d <= 6) return "warning";
+  if (d <= 5) return "danger"; // red
+  if (d <= 8) return "warning"; // orange
   return "safe";
 }
 
@@ -129,8 +129,10 @@ export default function ShorelineRiskPage() {
       setShoreline(data?.shoreline || []);
       setCrossedBoundary(Boolean(data?.evaluation?.boundaryCrossed));
 
+      const evaluated = data?.evaluation?.nestsEvaluated || [];
+
       const riskMap = new Map();
-      for (const n of data?.evaluation?.nestsAtRisk || []) {
+      for (const n of evaluated) {
         riskMap.set(n.id, n.distancePct);
       }
 

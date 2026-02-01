@@ -62,7 +62,7 @@ export async function getNests() {
 // ---------------------
 // Offline Evaluation (IMAGE)
 // ---------------------
-export async function evaluateOffline(file, bufferPct = 3, token) {
+export async function evaluateOffline(file, bufferPct = 5, token) {
   const form = new FormData();
   form.append("file", file, file.name); // ✅ correct field
 

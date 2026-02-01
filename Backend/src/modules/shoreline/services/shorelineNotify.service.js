@@ -45,7 +45,26 @@ function buildEmailHtml(alertDoc) {
     <hr/>
 
     <p><b>Boundary crossed:</b> ${String(evaln.boundaryCrossed)}</p>
-    <p><b>Nests at risk:</b> ${evaln.nestsAtRisk?.length || 0}</p>
+    <p><b>Nests at risk:</b> ${evaln.nestsAtRiskCount ?? (evaln.nestsAtRisk?.length || 0)}</p>
+
+    ${
+      (evaln.nestsAtRisk || []).length
+        ? `
+  <p><b>At-risk nests:</b></p>
+  <ul>
+    ${(evaln.nestsAtRisk || [])
+      .slice(0, 10)
+      .map(
+        (n) =>
+          `<li><b>${n.label || n.id}</b> — distance: ${Number(n.distancePct).toFixed(2)}%</li>`,
+      )
+      .join("")}
+  </ul>
+`
+        : ``
+    }
+
+
 
     <h3>Environment</h3>
     <ul>
