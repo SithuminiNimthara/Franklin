@@ -17,31 +17,36 @@ if (
 }
 
 import http from "http";
-import { Server } from "socket.io";
+import { Server as SocketIOServer } from "socket.io";
 import app from "./app.js";
 import { config } from "./config/env.js";
 
 import { notificationService } from "./modules/notifications/notification.service.js";
 
-// Create HTTP server using Express app
+// ✅ Create HTTP server using Express app
 const httpServer = http.createServer(app);
 
 // ✅ Export io so controllers can import it
-export const io = new Server(httpServer, {
+export const io = new SocketIOServer(httpServer, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
   },
 });
 
-// Pass io to notification service
+// ✅ Pass io to notification service
 notificationService.setSocketIO(io);
 
 io.on("connection", (socket) => {
-  console.log("Client connected for real-time alerts");
+  console.log("🟢 Client connected for real-time alerts:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("🔴 Client disconnected:", socket.id);
+  });
 });
 
-server.listen(config.port, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${config.port}`);
-    console.log(`Accessible on LAN at http://<YOUR_LAN_IP>:${config.port}`);
+// ✅ FIX HERE: use httpServer.listen (not server.listen)
+httpServer.listen(config.port, "0.0.0.0", () => {
+  console.log(`🚀 Server running on http://localhost:${config.port}`);
+  console.log(`🌐 Accessible on LAN at http://<YOUR_LAN_IP>:${config.port}`);
 });

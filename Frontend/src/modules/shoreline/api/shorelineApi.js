@@ -62,17 +62,19 @@ export async function getNests() {
 // ---------------------
 // Offline Evaluation (IMAGE)
 // ---------------------
-export async function evaluateOffline(file, bufferPct = 3) {
+export async function evaluateOffline(file, bufferPct = 3, token) {
   const form = new FormData();
-
-  // ✅ MUST be "file" (matches multer)
-  form.append("file", file, file.name);
+  form.append("file", file, file.name); // ✅ correct field
 
   const url = `${API_BASE}/api/shoreline/evaluate-offline?bufferPct=${bufferPct}`;
   console.log("POST:", url);
 
   const res = await fetch(url, {
     method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // ❌ DO NOT set Content-Type
+    },
     body: form,
   });
 
