@@ -6,6 +6,8 @@ import { HatcheryVideo, HatcheryAlert } from "./hatchery.models.js";
 import { sendAlertToActiveUsers } from "./hatchery.alerts.controller.js";
 
 
+import { config } from "../../config/env.js";
+
 // Helper to get root directory
 const __filename = fileURLToPath(import.meta.url);
 const rootDir = path.join(path.dirname(__filename), "../../../");
@@ -48,7 +50,7 @@ export const updateVideoAnalysis = async (req, res) => {
 export const getTankStats = async (req, res) => {
   const { tankId } = req.params;
   try {
-    const response = await axios.get(`http://localhost:5001/data/${tankId}`);
+    const response = await axios.get(`${config.models.hatchery}/ai/hatchery/data/${tankId}`);
     res.json(response.data);
   } catch (error) {
     console.error("Error fetching tank stats:", error.message);
@@ -64,7 +66,8 @@ export const uploadFootage = async (req, res) => {
     }
 
     const PORT = process.env.PORT || 5002;
-    const videoUrl = `http://localhost:${PORT}/api/hatchery/video/${req.file.filename}`;
+    const BACKEND_URL = process.env.NODE_BACKEND_URL || `http://localhost:${PORT}/api`;
+    const videoUrl = `${BACKEND_URL}/hatchery/video/${req.file.filename}`;
 
     // 1. Save DB entry
     const newVideo = new HatcheryVideo({
@@ -81,23 +84,16 @@ export const uploadFootage = async (req, res) => {
     await newVideo.save();
 
     // 2. Register video with Python AI
-    const absoluteVideoPath = path.join(
-      rootDir,
-      "uploads",
-      "hatchery",
-      req.file.filename,
-    );
-
-    await axios.post("http://localhost:5001/register_upload", {
+    await axios.post(`${config.models.hatchery}/ai/hatchery/register_upload`, {
       videoId: `upload_${newVideo._id}`,
-      videoPath: absoluteVideoPath,
+      videoPath: videoUrl,
     });
 
     // 3. Respond to frontend
     res.status(201).json({
       message: "Upload successful",
       videoId: newVideo._id,
-      streamUrl: `http://localhost:5001/stream/upload_${newVideo._id}`,
+      streamUrl: `${config.models.hatchery}/ai/hatchery/stream/upload_${newVideo._id}`,
       rawVideoUrl: videoUrl,
     });
 
@@ -145,7 +141,7 @@ export const saveAlert = async (req, res) => {
 
 // Get all alerts (Past & Present)
 export const getAlerts = async (req, res) => {
-  
+
   try {
     const alerts = await HatcheryAlert.find().sort({ createdAt: -1 });
     //console.log(`Returning ${alerts.length} alerts`);  
@@ -207,7 +203,7 @@ export const generateHatcheryReport = async (req, res) => {
     const tankIds = ["tankA", "tankB", "tankC", "tankD"];
     const tankDataPromises = tankIds.map((tankId) =>
       axios
-        .get(`http://localhost:5001/data/${tankId}`)
+        .get(`${config.models.hatchery}/ai/hatchery/data/${tankId}`)
         .then((response) => {
           // console.log(`Fetched data for ${tankId}:`, response.data);
           return { tankId, ...response.data };

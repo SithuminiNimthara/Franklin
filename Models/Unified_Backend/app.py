@@ -24,6 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "Unified AI Model Backend"}
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
@@ -31,7 +35,7 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Node.js Backend URL for Detections
-NODE_BACKEND_URL = "http://localhost:5002/api/detections"
+NODE_BACKEND_URL = os.environ.get("NODE_BACKEND_URL", "http://localhost:5002/api/detections")
 
 # Sources for models - ADJUST PATHS TO RELATIVE LOCATION IN THE WORKSPACE
 SOURCE_TURTLE = os.path.abspath(os.path.join(BASE_DIR, "../Nest_Detection_Backend/models/best.pt"))
@@ -289,4 +293,5 @@ async def get_content(filename: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { Upload, Play, CheckCircle, X, Activity, ShieldCheck, Bug } from "lucide-react";
+import { API_BASE_URL, HATCHERY_MODEL_URL } from "../../config";
 
 export default function UploadAnalyzer() {
   const fileInputRef = useRef(null);
@@ -23,13 +24,13 @@ export default function UploadAnalyzer() {
     const formData = new FormData();
     formData.append("video", file);
     try {
-      const response = await axios.post("http://localhost:5002/api/hatchery/upload", formData, {
+      const response = await axios.post(`${API_BASE_URL}/hatchery/upload`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (e) => setProgress(Math.round((e.loaded * 100) / e.total)),
       });
-      
+
       console.log("Upload response:", response.data); // Debug log
-      
+
       setVideoId(response.data.videoId);
       setStreamUrl(response.data.streamUrl);
       setUploadComplete(true);
@@ -43,13 +44,13 @@ export default function UploadAnalyzer() {
 
   useEffect(() => {
     if (!videoId || !showPlayer) return;
-    
+
     console.log("Starting to poll for video ID:", videoId); // Debug log
-    
+
     const interval = setInterval(async () => {
       try {
         // Option 1: Poll Python server directly
-        const pythonResponse = await fetch(`http://localhost:5001/data/upload_${videoId}`);
+        const pythonResponse = await fetch(`${HATCHERY_MODEL_URL}/data/upload_${videoId}`);
         if (pythonResponse.ok) {
           const data = await pythonResponse.json();
           console.log("Python data:", data); // Debug log
@@ -63,10 +64,10 @@ export default function UploadAnalyzer() {
         }
       } catch (pythonError) {
         console.log("Python endpoint not ready, trying MongoDB..."); // Debug log
-        
+
         // Option 2: Fallback to MongoDB (your backend)
         try {
-          const backendResponse = await fetch(`http://localhost:5002/api/hatchery/video-analysis/${videoId}`);
+          const backendResponse = await fetch(`${API_BASE_URL}/hatchery/video-analysis/${videoId}`);
           if (backendResponse.ok) {
             const mongoData = await backendResponse.json();
             console.log("MongoDB data:", mongoData); // Debug log
@@ -83,7 +84,7 @@ export default function UploadAnalyzer() {
         }
       }
     }, 2000); // Poll every 2 seconds (increased from 1 second to reduce load)
-    
+
     return () => clearInterval(interval);
   }, [videoId, showPlayer]);
 

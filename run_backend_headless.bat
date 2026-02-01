@@ -1,6 +1,0 @@
-@echo off
-cd /d "%~dp0"
-echo Installing/Verifying dependencies...
-pip install fastapi uvicorn ultralytics opencv-python python-multipart tensorflow
-echo Starting Backend...
-python Models/Unified_Backend/app.py

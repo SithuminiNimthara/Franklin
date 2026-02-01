@@ -1,0 +1,46 @@
+services:
+  # 1) Frontend (Static Site) ✅
+  - type: static
+    name: franklin-frontend
+    rootDir: Frontend
+    buildCommand: npm install && npm run build
+    publishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+
+  # 2) Backend (Node API) ✅
+  - type: web
+    name: franklin-backend
+    runtime: node
+    plan: free
+    rootDir: Backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: AI_SERVICE_URL
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: STREAMING_ENABLED
+        value: "false"
+
+  # 3) Franklin AI Service (Merged Python) ✅
+  - type: web
+    name: franklin-ai
+    runtime: python
+    plan: free
+    rootDir: Models/AI_Service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NODE_BACKEND_URL
+        sync: false

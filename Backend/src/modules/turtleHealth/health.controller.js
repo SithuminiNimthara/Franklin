@@ -2,13 +2,14 @@ import { TurtleHealth } from './health.model.js';
 
 export const saveHealthDiagnosis = async (req, res) => {
     try {
-        const { diagnosisClass, confidence, probabilities, imageUrl, notes } = req.body;
+        const { diagnosisClass, confidence, probabilities, imageUrl, notes, location } = req.body;
 
         const newDiagnosis = new TurtleHealth({
             diagnosisClass,
             confidence,
             probabilities,
             imageUrl,
+            location,
             notes
         });
 

@@ -5,6 +5,7 @@ import axios from 'axios';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 import { useTheme } from '../../shared/ThemeContext';
+import { API_BASE_URL } from '../../shared/config';
 
 import CameraSection from './CameraSection';
 
@@ -54,9 +55,9 @@ export default function ProfilePage() {
       const token = await getToken();
       const headers = { Authorization: `Bearer ${token}` };
       const [pRes, sRes, sumRes] = await Promise.all([
-        axios.get('http://localhost:5002/api/profile/me', { headers }),
-        axios.get('http://localhost:5002/api/profile/me/settings', { headers }),
-        axios.get('http://localhost:5002/api/profile/me/summary', { headers })
+        axios.get(`${API_BASE_URL}/profile/me`, { headers }),
+        axios.get(`${API_BASE_URL}/profile/me/settings`, { headers }),
+        axios.get(`${API_BASE_URL}/profile/me/summary`, { headers })
       ]);
       const data = {
         ...pRes.data,
@@ -81,8 +82,8 @@ export default function ProfilePage() {
       const token = await getToken();
       const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-      await axios.put('http://localhost:5002/api/profile/me', data, { headers });
-      const settingsRes = await axios.put('http://localhost:5002/api/profile/me/settings', {
+      await axios.put(`${API_BASE_URL}/profile/me`, data, { headers });
+      const settingsRes = await axios.put(`${API_BASE_URL}/profile/me/settings`, {
         notifications: data.notifications,
         preferences: data.preferences
       }, { headers });
