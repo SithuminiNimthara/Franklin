@@ -65,9 +65,9 @@ function ensureDefaults() {
   const nests = readJson(NESTS_FILE, null);
   if (!Array.isArray(nests)) {
     writeJson(NESTS_FILE, [
-      { id: "nest-1", label: "Nest #234", x: 25, y: 40 },
-      { id: "nest-2", label: "Nest #189", x: 45, y: 55 },
-      { id: "nest-3", label: "Nest #201", x: 80, y: 60 },
+      { id: "nest-1", label: "Nest #234", x: 10, y: 46 }, // red
+      { id: "nest-2", label: "Nest #189", x: 18, y: 48 }, // orange
+      { id: "nest-3", label: "Nest #201", x: 70, y: 60 }, // green
     ]);
   }
 }
@@ -273,6 +273,22 @@ export async function evaluateOffline(req, res) {
       bufferPct,
     });
 
+    console.log("IMG META:", { imgW, imgH });
+    console.log("BUFFER:", bufferPct);
+    console.log("FIRST SHORELINE PCT:", shorelinePct?.slice(0, 5));
+
+    const withD = evaluation.nestsEvaluated || evaluation.nestsAtRisk || [];
+    console.log(
+      "NEST DISTANCES:",
+      withD.map((n) => ({
+        id: n.id,
+        label: n.label,
+        x: n.x,
+        y: n.y,
+        d: n.distancePct,
+      })),
+    );
+
     console.log("RISK EVALUATION RESULT:", {
       riskLevel: evaluation.riskLevel,
       boundaryCrossed: evaluation.boundaryCrossed,
@@ -346,7 +362,9 @@ export async function evaluateOffline(req, res) {
           evaluation,
           bufferPct,
           boundary,
-          nests,
+          nests: evaluation.nestsEvaluated || nests,
+          nestsAtRiskCount:
+            evaluation.nestsAtRiskCount ?? evaluation.nestsAtRisk?.length ?? 0,
           shoreline: shorelinePct,
           image: { w: imgW, h: imgH },
           model: {
