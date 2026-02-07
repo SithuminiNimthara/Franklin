@@ -1,5 +1,4 @@
 import express from "express";
-import fs from "fs";
 import cors from "cors";
 import { config } from "./config/env.js";
 import streamingRoutes from "./modules/streaming/streaming.routes.js";
@@ -52,36 +51,22 @@ const init = async () => {
 
 init();
 
-// Ensure stream directory exists before mounting
-if (!fs.existsSync(config.streamDir)) {
-  fs.mkdirSync(config.streamDir, { recursive: true });
-}
-
 // Static Routes (Streaming)
-app.use('/streams', (req, res, next) => {
-  // Manual CORS for static files to ensure HLS.js can always access them
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Range, Authorization, Content-Type");
-  res.header("Access-Control-Expose-Headers", "Content-Length, Content-Range");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
-}, express.static(config.streamDir, {
-  setHeaders: (res, filePath) => {
-    // Ensure correct MIME types for HLS on Render
+app.use('/streams', express.static(config.streamDir, {
+  setHeaders(res, filePath) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "Range, Authorization, Content-Type");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Range");
+
+    // Ensure correct MIME types for HLS
     if (filePath.endsWith(".m3u8")) {
       res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     } else if (filePath.endsWith(".ts")) {
       res.setHeader("Content-Type", "video/mp2t");
     }
-    // Production caching: don't cache manifest, cache segments
-    if (filePath.endsWith(".m3u8")) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    } else {
-      res.setHeader("Cache-Control", "public, max-age=3600");
-    }
   },
-}));
+})
+);
 
 // API Routes
 app.use("/api/streaming", streamingRoutes);
