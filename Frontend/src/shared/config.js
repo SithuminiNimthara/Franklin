@@ -6,13 +6,15 @@ const cleanUrl = (url) => (url ? url.replace(/\/+$/, "") : "");
 
 // Backend API (Node)
 export const API_BASE_URL =
-    cleanUrl(import.meta.env.VITE_API_BASE_URL) || (import.meta.env.PROD ? "" : "http://localhost:5002");
+    cleanUrl(import.meta.env.VITE_API_BASE_URL) || "http://localhost:5002";
 
 // Unified AI Service Defaults
+// In the new unified architecture, all AI endpoints likely sit behind one URL.
+// We allow individual overrides but default to the unified service URL.
 const DEFAULT_AI_URL =
-    cleanUrl(import.meta.env.VITE_AI_SERVICE_URL) || (import.meta.env.PROD ? "" : "http://localhost:8000");
+    cleanUrl(import.meta.env.VITE_AI_SERVICE_URL) || "http://localhost:8000";
 
-// Export all model URLs
+// Export all model URLs to satisfy imports across the frontend
 export const UNIFIED_MODEL_URL =
     cleanUrl(import.meta.env.VITE_UNIFIED_MODEL_URL) || DEFAULT_AI_URL;
 
@@ -25,18 +27,9 @@ export const SHORELINE_MODEL_URL =
 export const HATCHERY_MODEL_URL =
     cleanUrl(import.meta.env.VITE_HATCHERY_MODEL_URL) || DEFAULT_AI_URL;
 
-/**
- * PRODUCTION SAFE STREAMING ARCHITECTURE
- * HLS streams are served as static files from the backend /streams directory.
- */
-export const getStreamUrl = (cameraId) => {
-    if (!cameraId) return "";
-    // If API_BASE_URL is not set, we use relative paths which work if hosted on same domain
-    const base = API_BASE_URL || "";
-    return `${base}/streams/${cameraId}/stream.m3u8`;
-};
-
-export const getHatcheryDataUrl = (tankId) => `${API_BASE_URL}/api/hatchery/data/${tankId}`;
+// Helper to build consistent Stream/Data URLs (proxied via Backend)
+export const getStreamUrl = (tankId) => `${API_BASE_URL}/stream/${tankId}`;
+export const getHatcheryDataUrl = (tankId) => `${API_BASE_URL}/data/${tankId}`;
 
 // Generic API URL builder
 export const getApiUrl = (endpoint) =>

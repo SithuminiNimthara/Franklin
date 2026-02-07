@@ -61,12 +61,8 @@ hatchery_engine = None
 
 @app.on_event("startup")
 async def startup_event():
-    # Render requires the app to bind to a port within a specific time.
-    # We do NO heavy loading here.
-    print(f"🚀 Franklin AI Service Bound to Port. (Ready for lazy loading)")
-    # Ensure directories exist
-    os.makedirs(MODELS_DIR, exist_ok=True)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # IMPORTANT: Keep startup fast so Render detects the open port.
+    print("Franklin AI Service starting... (FAST START, lazy models)")
 
 
 # ---------------------------

@@ -55,9 +55,9 @@ export default function ProfilePage() {
       const token = await getToken();
       const headers = { Authorization: `Bearer ${token}` };
       const [pRes, sRes, sumRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/profile/me`, { headers }),
-        axios.get(`${API_BASE_URL}/api/profile/me/settings`, { headers }),
-        axios.get(`${API_BASE_URL}/api/profile/me/summary`, { headers })
+        axios.get(`${API_BASE_URL}/profile/me`, { headers }),
+        axios.get(`${API_BASE_URL}/profile/me/settings`, { headers }),
+        axios.get(`${API_BASE_URL}/profile/me/summary`, { headers })
       ]);
       const data = {
         ...pRes.data,
@@ -82,8 +82,8 @@ export default function ProfilePage() {
       const token = await getToken();
       const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-      await axios.put(`${API_BASE_URL}/api/profile/me`, data, { headers });
-      const settingsRes = await axios.put(`${API_BASE_URL}/api/profile/me/settings`, {
+      await axios.put(`${API_BASE_URL}/profile/me`, data, { headers });
+      const settingsRes = await axios.put(`${API_BASE_URL}/profile/me/settings`, {
         notifications: data.notifications,
         preferences: data.preferences
       }, { headers });
