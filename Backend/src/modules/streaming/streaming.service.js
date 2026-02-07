@@ -44,53 +44,47 @@ class StreamingService {
         if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
         const outPath = path.join(outDir, 'stream.m3u8');
 
-        // Audio-enabled FFmpeg arguments
+        // Optimized FFmpeg arguments for low-latency HLS
         const args = [
-            '-rtsp_transport', 'tcp',
-            '-i', cam.rtspUrl,
-            '-map', '0:v:0',      // Map first video stream
-            '-map', '0:a:0?',     // Map first audio stream if it exists
-            '-c:v', 'libx264',
-            '-preset', 'veryfast',
-            '-tune', 'zerolatency',
-            '-g', '50',
-            '-c:a', 'aac',        // Encode audio to AAC
-            '-b:a', '128k',       // Audio bitrate
-            '-ar', '44100',       // Audio sample rate
-            '-ac', '2',            // Stereo audio
+            '-rtsp_transport', 'tcp',        // Stable transport
+            '-i', cam.rtspUrl,               // Input
+            '-c:v', 'libx264',               // Video Codec
+            '-preset', 'superfast',          // Speed over compression
+            '-tune', 'zerolatency',          // Latency optimization
+            '-pix_fmt', 'yuv420p',           // Compatibility
+            '-g', '60',                      // Keyframe interval (2x FPS)
+            '-c:a', 'aac',                   // Audio Codec
+            '-b:a', '64k',                   // Low bitrate audio
+            '-ar', '44100',
             '-f', 'hls',
-            '-hls_time', '4',
-            '-hls_list_size', '5',
+            '-hls_time', '2',                // 2 second segments (Lower = less latency but more requests)
+            '-hls_list_size', '3',           // Keep 3 segments in manifest
             '-hls_flags', 'delete_segments+append_list+independent_segments',
             '-hls_segment_type', 'mpegts',
             '-hls_allow_cache', '0',
+            '-master_pl_name', 'master.m3u8',
             outPath
         ];
 
         const startProcess = () => {
-            console.log(`[Streaming] Starting FFmpeg process for ${cam.id}`);
+            console.log(`[Streaming] Spawning FFmpeg for camera: ${cam.id}`);
             const ff = spawn(ffmpegPath, args);
 
             ff.stderr.on('data', d => {
                 const msg = d.toString();
-
-                // Audio detection logging
-                if (msg.includes('Audio:')) {
-                    console.log(`[Streaming Info ${cam.id}] Audio stream detected and being processed.`);
-                }
-
-                if (msg.toLowerCase().includes('error') || msg.toLowerCase().includes('fail')) {
+                // We only log errors to keep stdout clean
+                if (msg.toLowerCase().includes('error')) {
                     console.error(`[FFmpeg Error ${cam.id}] ${msg.trim()}`);
                 }
             });
 
             ff.on('exit', (code, signal) => {
-                if (signal === 'SIGTERM' || signal === 'SIGINT') {
-                    console.log(`[Streaming] ${cam.id} process terminated manually.`);
+                if (signal === 'SIGTERM') {
+                    console.log(`[Streaming] ${cam.id} stopped.`);
                     return;
                 }
-                console.warn(`[Streaming] ${cam.id} process exited with code ${code}. Restarting in 1s...`);
-                const timeout = setTimeout(startProcess, 1000);
+                console.warn(`[Streaming] ${cam.id} crashed (code ${code}). Restarting...`);
+                const timeout = setTimeout(startProcess, 2000);
                 this.processes.set(cam.id, { process: null, restartTimeout: timeout });
             });
 
