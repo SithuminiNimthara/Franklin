@@ -9,7 +9,7 @@ import Button from '../../shared/components/ui/Button';
 import SimulationUpload from './SimulationUpload';
 import { useUser } from '@clerk/clerk-react';
 import CameraSelector from '../../shared/components/media/CameraSelector';
-import { API_BASE_URL } from '../../shared/config';
+import { API_BASE_URL, BACKEND_URL } from '../../shared/config';
 
 const MOCK_NESTS = [
   { nestNo: 'N001', x: 25, y: 40, locationName: 'Zone A', createdAt: '2026-01-26 10:00:00', status: 'safe' },
@@ -48,11 +48,11 @@ export default function NestMonitoringPage() {
   const RADIUS_THRESHOLD = 15;
 
   const streamUrl = activeCamera
-    ? `${API_BASE_URL}/streams/${activeCamera._id}/stream.m3u8`
+    ? `${BACKEND_URL}/streams/${activeCamera._id}/stream.m3u8`
     : null;
 
   useEffect(() => {
-    const socket = io(API_BASE_URL);
+    const socket = io(BACKEND_URL);
     socket.on('danger_alert', (data) => console.log('Central Server Alert:', data));
     return () => socket.disconnect();
   }, []);
@@ -73,7 +73,7 @@ export default function NestMonitoringPage() {
   }, []);
 
   const fetchHistory = () => {
-    fetch(`${API_BASE_URL}/api/detections`)
+    fetch(`${API_BASE_URL}/detections`)
       .then(res => res.json())
       .then(res => { if (res.success) setDetectionHistory(res.data); })
       .catch(err => console.error("Failed to load history", err));
@@ -103,7 +103,7 @@ export default function NestMonitoringPage() {
     playSiren();
 
     try {
-      await fetch(`${API_BASE_URL}/api/alerts/email`, {
+      await fetch(`${API_BASE_URL}/alerts/email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

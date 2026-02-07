@@ -21,6 +21,7 @@ export default function HlsPlayer({ src, className }) {
   const [retryCount, setRetryCount] = useState(0)
   const [showControls, setShowControls] = useState(false)
   const [isPlaying, setIsPlaying] = useState(true)
+  const [useFallback, setUseFallback] = useState(false)
 
   // Audio state
   const [isMuted, setIsMuted] = useState(() => {
@@ -48,9 +49,27 @@ export default function HlsPlayer({ src, className }) {
     return () => document.removeEventListener("fullscreenchange", handleFs);
   }, [])
 
-  const initHls = useCallback(() => {
+  const initHls = useCallback(async () => {
     const video = videoRef.current
     if (!video || !src) return
+
+    // Fallback logic for production/cloud
+    let currentSrc = src;
+    if (useFallback) {
+      currentSrc = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+    }
+
+    // Pre-flight check if URL is reachable
+    if (!useFallback && retryCount === 0) {
+      try {
+        const check = await fetch(currentSrc, { method: 'HEAD' });
+        if (!check.ok) throw new Error('Stream 404');
+      } catch (err) {
+        console.warn("[HlsPlayer] Primary stream unreachable, attempting fallback");
+        setUseFallback(true);
+        return; // Re-trigger via effect
+      }
+    }
 
     if (hlsRef.current) {
       hlsRef.current.destroy()
@@ -68,7 +87,7 @@ export default function HlsPlayer({ src, className }) {
       })
 
       hlsRef.current = hls
-      hls.loadSource(src)
+      hls.loadSource(currentSrc)
       hls.attachMedia(video)
 
       hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
@@ -77,58 +96,49 @@ export default function HlsPlayer({ src, className }) {
         setStatus("playing")
         setRetryCount(0)
 
-        // Autoplay logic: browsers allow autoplay ONLY if muted or after interaction
         video.muted = isMuted
         video.volume = volume
         video.play().catch(err => {
-          console.warn("[HlsPlayer] Autoplay blocked, waiting for interaction:", err.message)
+          console.warn("[HlsPlayer] Autoplay blocked:", err.message)
           setIsPlaying(false)
         })
       })
 
-      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (event, data) => {
-        console.log("[HlsPlayer] Audio tracks updated:", data.audioTracks.length)
-        setHasAudio(data.audioTracks.length > 0)
-      })
-
       hls.on(Hls.Events.ERROR, (event, data) => {
         if (data.fatal) {
-          setStatus("reconnecting")
           console.error(`[HlsPlayer] Fatal Error: ${data.details}`)
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad()
-              break
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError()
-              break
-            default:
-              const wait = Math.min(1000 * Math.pow(2, retryCount), 15000)
-              setTimeout(() => {
-                setRetryCount(prev => prev + 1)
-                initHls()
-              }, wait)
-              break
+          if (data.details === 'manifestLoadError' && !useFallback) {
+            setUseFallback(true);
+          } else {
+            setStatus("reconnecting")
+            const wait = Math.min(1000 * Math.pow(2, retryCount), 15000)
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1)
+              initHls()
+            }, wait)
           }
         }
       })
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // Safari native HLS
-      video.src = src
-      video.muted = true // Start muted for autoplay
+      video.src = currentSrc
+      video.muted = true
       video.addEventListener('loadedmetadata', () => {
         video.play().catch(() => setIsPlaying(false))
         setStatus("playing")
-        // Note: Safari doesn't provide track info as easily via standard API without iteration
         setHasAudio(true)
       })
     }
-  }, [src, retryCount, isMuted, volume])
+  }, [src, retryCount, isMuted, volume, useFallback])
 
   useEffect(() => {
     initHls()
     return () => hlsRef.current?.destroy()
   }, [initHls])
+
+  // Reset fallback if src changes
+  useEffect(() => {
+    setUseFallback(false);
+  }, [src])
 
   // Controls
   const togglePlay = (e) => {
@@ -228,13 +238,18 @@ export default function HlsPlayer({ src, className }) {
       {/* Live HUD */}
       {status === "playing" && (
         <div className="absolute top-4 left-4 z-10 flex items-start gap-4">
-          <div className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg border border-red-500/50 flex items-center gap-1.5">
-            <span className="h-1 w-1 bg-white rounded-full animate-pulse" />
-            LIVE FEED
+          <div className={`${useFallback ? 'bg-amber-600' : 'bg-red-600'} text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg border border-white/20 flex items-center gap-1.5 transition-colors`}>
+            <span className={`h-1 w-1 bg-white rounded-full ${useFallback ? '' : 'animate-pulse'}`} />
+            {useFallback ? 'DEMO MODE' : 'LIVE FEED'}
           </div>
           {!hasAudio && (
             <div className="bg-slate-800/80 text-yellow-400 text-[8px] font-bold px-2 py-0.5 rounded flex items-center gap-1 uppercase tracking-tighter">
               Video Only
+            </div>
+          )}
+          {useFallback && (
+            <div className="bg-amber-100/10 backdrop-blur-sm text-amber-400 text-[8px] font-bold px-2 py-0.5 rounded flex items-center gap-1 uppercase tracking-tighter border border-amber-500/20">
+              Cloud Environment • Primary Feed Offline
             </div>
           )}
         </div>

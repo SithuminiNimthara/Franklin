@@ -14,7 +14,6 @@ export default function CameraSection() {
     const [newCamera, setNewCamera] = useState({ name: '', ipAddress: '' });
     const [showAddForm, setShowAddForm] = useState(false);
 
-    const API_BASE = API_BASE_URL.replace(/\/api$/, '');
 
     useEffect(() => {
         fetchCameras();
@@ -24,7 +23,7 @@ export default function CameraSection() {
         setLoading(true);
         try {
             const token = await getToken();
-            const res = await axios.get(`${API_BASE}/api/cameras`, {
+            const res = await axios.get(`${API_BASE_URL}/cameras`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.data.success) {
@@ -48,7 +47,7 @@ export default function CameraSection() {
         setActionLoading('add');
         try {
             const token = await getToken();
-            const res = await axios.post(`${API_BASE}/api/cameras`, newCamera, {
+            const res = await axios.post(`${API_BASE_URL}/cameras`, newCamera, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.data.success) {
@@ -67,7 +66,7 @@ export default function CameraSection() {
         setActionLoading(id);
         try {
             const token = await getToken();
-            const res = await axios.put(`${API_BASE}/api/cameras/${id}`, { isEnabled: !isEnabled }, {
+            const res = await axios.put(`${API_BASE_URL}/cameras/${id}`, { isEnabled: !isEnabled }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.data.success) {
@@ -86,7 +85,7 @@ export default function CameraSection() {
         setActionLoading(id);
         try {
             const token = await getToken();
-            await axios.delete(`${API_BASE}/api/cameras/${id}`, {
+            await axios.delete(`${API_BASE_URL}/cameras/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setCameras(cameras.filter(c => c._id !== id));
