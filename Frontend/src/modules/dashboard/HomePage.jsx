@@ -6,13 +6,14 @@ import DashboardCard from '../../shared/components/ui/DashboardCard';
 import HlsPlayer from '../../shared/components/media/HlsPlayer';
 import StatSummaryCard from '../../shared/components/ui/StatSummaryCard';
 import Button from '../../shared/components/ui/Button';
-import { API_BASE_URL, BACKEND_URL } from '../../shared/config';
+import { API_BASE_URL } from '../../shared/config';
 
 export default function HomePage() {
   const { getToken } = useAuth();
   const [mainCamera, setMainCamera] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const API_BASE = API_BASE_URL.replace(/\/api$/, '');
 
   useEffect(() => {
     fetchMainCamera();
@@ -21,7 +22,7 @@ export default function HomePage() {
   const fetchMainCamera = async () => {
     try {
       const token = await getToken();
-      const res = await axios.get(`${API_BASE_URL}/cameras`, {
+      const res = await axios.get(`${API_BASE}/api/cameras`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.success) {
@@ -36,7 +37,7 @@ export default function HomePage() {
   };
 
   const streamUrl = mainCamera
-    ? `${BACKEND_URL}/streams/${mainCamera._id}/stream.m3u8`
+    ? `${API_BASE}/streams/${mainCamera._id}/stream.m3u8`
     : null;
 
   return (
