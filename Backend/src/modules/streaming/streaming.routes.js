@@ -5,6 +5,7 @@ import { streamingService } from './streaming.service.js';
 const router = express.Router();
 
 // Route to get status/list of streams
+router.get('/config', streamingController.getConfig);
 router.get('/', streamingController.getStatus);
 router.get('/health/:cameraId', streamingController.getHealth);
 

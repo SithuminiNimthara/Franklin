@@ -3,6 +3,15 @@ import { streamingService } from './streaming.service.js';
 import { config } from '../../config/env.js';
 
 export const streamingController = {
+    getConfig: (req, res) => {
+        res.json({
+            enabled: config.streamingEnabled,
+            message: config.streamingEnabled ? 'HLS streaming active' : 'Streaming disabled in this environment',
+            demoVideoUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', // Industry standard HLS test stream
+            isCloud: process.env.RENDER === 'true'
+        });
+    },
+
     getStatus: (req, res) => {
         const statuses = streamingService.getStreamingStatus();
         res.json({
