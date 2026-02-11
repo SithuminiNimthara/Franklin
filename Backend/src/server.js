@@ -47,5 +47,9 @@ io.on("connection", (socket) => {
 // ✅ Start server
 server.listen(config.port, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${config.port}`);
-  console.log(`Accessible on LAN at http://<YOUR_LAN_IP>:${config.port}`);
+  console.log(`AI Proxy Target: ${config.models.unified}`);
+
+  if (config.models.unified.includes("localhost")) {
+    console.warn("WARNING: AI_SERVICE_URL is set to localhost. This will fail in production unless on the same machine.");
+  }
 });

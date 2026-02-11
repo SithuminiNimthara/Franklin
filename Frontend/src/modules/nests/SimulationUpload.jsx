@@ -37,7 +37,10 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
             }
         } catch (error) {
             console.error(error);
-            alert('Error analyzing video. Ensure the Unified Backend is running on port 8000.');
+            const msg = error.message === 'Analysis failed'
+                ? 'AI Service Unavailable (502). Check Backend Logs.'
+                : error.message;
+            alert(`Simulation Failed: ${msg}`);
         } finally {
             setLoading(false);
         }
