@@ -10,20 +10,9 @@ function HealthStats() {
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/health/stats`)
-      .then(async res => {
-        if (!res.ok) throw new Error(`Status: ${res.status}`);
-        const text = await res.text();
-        try {
-          return JSON.parse(text);
-        } catch (e) {
-          throw new Error('Invalid JSON response');
-        }
-      })
+      .then(res => res.json())
       .then(data => setStats(data))
-      .catch(err => {
-        console.error("Failed to fetch stats (likely 404 or backend issue):", err);
-        // Optional: setStats(mockStats) or similar if critical
-      });
+      .catch(err => console.error("Failed to fetch stats", err));
   }, []);
 
   if (!stats) return <p className="text-gray-500 animate-pulse">Loading analytics...</p>;

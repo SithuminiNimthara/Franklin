@@ -50,20 +50,11 @@ export const updateVideoAnalysis = async (req, res) => {
 export const getTankStats = async (req, res) => {
   const { tankId } = req.params;
   try {
-    const response = await axios.get(`${config.models.hatchery}/ai/hatchery/data/${tankId}`, {
-      timeout: 2000 // fast fail
-    });
+    const response = await axios.get(`${config.models.hatchery}/ai/hatchery/data/${tankId}`);
     res.json(response.data);
   } catch (error) {
-    // Return gracefully so frontend doesn't break
-    // console.warn(`[Data] Tank ${tankId} unreachable:`, error.message);
-    res.json({
-      tankId,
-      status: "Offline",
-      health: "Unknown",
-      species: "Unknown",
-      timestamp: new Date()
-    });
+    console.error("Error fetching tank stats:", error.message);
+    res.status(500).json({ error: "Failed to fetch stats" });
   }
 };
 

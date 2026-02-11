@@ -50,26 +50,20 @@ class StreamingService {
             '-i', cam.rtspUrl,
             '-map', '0:v:0',      // Map first video stream
             '-map', '0:a:0?',     // Map first audio stream if it exists
-
-            // OPTIMIZATION: Try to copy video stream first (consumes almost 0 CPU)
-            // If the camera is not H.264, change 'copy' to 'libx264' and use '-preset ultrafast'
-            '-c:v', 'copy',
-            // '-c:v', 'libx264', '-preset', 'ultrafast', // Uncomment this if 'copy' fails or video is blank
-
-            ['-sn'], // Disable subtitles to prevent issues
-
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-tune', 'zerolatency',
+            '-g', '50',
             '-c:a', 'aac',        // Encode audio to AAC
             '-b:a', '128k',       // Audio bitrate
             '-ar', '44100',       // Audio sample rate
             '-ac', '2',            // Stereo audio
-
             '-f', 'hls',
-            '-hls_time', '2',     // Smaller segments for lower latency (2s)
-            '-hls_list_size', '5', // Keep playlist small
-            '-hls_flags', 'delete_segments+append_list', // Don't use independent_segments with copy usually, but ok if keyframes match
-            '-start_number', '1',
+            '-hls_time', '4',
+            '-hls_list_size', '5',
+            '-hls_flags', 'delete_segments+append_list+independent_segments',
+            '-hls_segment_type', 'mpegts',
             '-hls_allow_cache', '0',
-
             outPath
         ];
 

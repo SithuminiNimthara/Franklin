@@ -15,8 +15,7 @@ import hatcheryRoutes from "./modules/hatchery/hatchery.routes.js";
 import alertsRoutes from "./modules/alerts/alerts.routes.js";
 import profileRoutes from "./modules/users/profile.routes.js";
 import cameraRoutes from './modules/cameras/camera.routes.js';
-import dataRoutes from "./modules/data/data.routes.js";
-import proxyRoutes from "./modules/proxy/proxy.routes.js";
+
 
 const app = express();
 
@@ -82,21 +81,11 @@ app.use("/api/hatchery", hatcheryRoutes);
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/cameras", cameraRoutes);
-app.use("/api/data", dataRoutes);
-app.use("/api/unified", proxyRoutes); // Proxy for AI Service
-
-// --- COMPATIBILITY ROUTES (Fix for frontend missing /api prefix) ---
-app.use("/health", healthRoutes);       // Fix: GET /health/stats
-app.use("/hatchery", hatcheryRoutes);   // Fix: GET /hatchery/alerts
-app.use("/profile", profileRoutes);     // Fix: GET /profile/me
-app.use("/data", dataRoutes);           // Fix: GET /data/:tankId
-// ------------------------------------------------------------------
 
 // Health route
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "OK", timestamp: new Date() });
 });
-
 
 // Root route
 app.get("/", (req, res) => {
