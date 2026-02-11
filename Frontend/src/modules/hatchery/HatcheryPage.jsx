@@ -23,18 +23,33 @@ export default function HatcheryPage() {
   useEffect(() => {
     const fetchTodayAlerts = () => {
       fetch(`${API_BASE_URL}/hatchery/alerts`)
-        .then((res) => res.json())
-        .then((data) => {
-          const today = new Date().toDateString();
-          setAlerts(
-            data.filter((a) => new Date(a.createdAt).toDateString() === today),
-          );
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`Status ${res.status}`);
+          const text = await res.text();
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            throw new Error(`Invalid JSON: ${e.message}`);
+          }
         })
-        .catch(() => setAlerts([]));
+        .then((data) => {
+          if (Array.isArray(data)) {
+            const today = new Date().toDateString();
+            setAlerts(
+              data.filter((a) => new Date(a.createdAt).toDateString() === today),
+            );
+          } else {
+            console.error("Expected alert array, got:", data);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch alerts:", err.message);
+          setAlerts([]);
+        });
     };
 
     fetchTodayAlerts();
-    const interval = setInterval(fetchTodayAlerts, 5000);
+    const interval = setInterval(fetchTodayAlerts, 10000); // Poll slower (10s)
     return () => clearInterval(interval);
   }, []);
 

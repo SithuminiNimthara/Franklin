@@ -13,16 +13,25 @@ export default function TankVideoCard({ tankId, tankLabel }) {
   useEffect(() => {
     const interval = setInterval(() => {
       fetch(getHatcheryDataUrl(tankId))
-        .then((res) => res.json())
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`Status ${res.status}`);
+          const text = await res.text();
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            throw new Error('Invalid JSON');
+          }
+        })
         .then(setData)
-        .catch(() =>
+        .catch((e) => {
+          // console.warn("Tank offline:", tankId, e.message);
           setData({
             status: "Offline",
             health: "Unknown",
             species: "Unknown",
-          })
-        );
-    }, 1000);
+          });
+        });
+    }, 2000);
     return () => clearInterval(interval);
   }, [tankId]);
 
