@@ -34,21 +34,38 @@ router.post('/analyze', async (req, res) => {
         // Otherwise assume JSON/UrlEncoded (parsed by express.json middleware)
         const response = await axios.post(targetUrl, req.body, {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 30000
+            timeout: 30000,
+            validateStatus: () => true // Allow non-200 responses to be handled manually
         });
+
+        if (response.status >= 400) {
+            console.error(`[Proxy] Upstream error ${response.status} from ${targetUrl}:`, response.data);
+            return res.status(response.status).json(response.data);
+        }
 
         res.json(response.data);
 
     } catch (error) {
-        console.error(`[Proxy] Error forwarding to ${targetUrl}:`, error.message);
-        if (error.response) {
-            res.status(error.response.status).json(error.response.data);
-        } else {
-            res.status(502).json({
+        console.error(`[Proxy Fatal] Connection failed to ${targetUrl}`);
+        console.error(`Reason: ${error.message} (Code: ${error.code})`);
+
+        if (error.code === 'ECONNREFUSED') {
+            return res.status(502).json({
                 error: 'AI Service Unavailable',
-                details: error.message
+                details: 'Connection refused. Check AI_SERVICE_URL settings.'
             });
         }
+        if (error.code === 'ETIMEDOUT') {
+            return res.status(504).json({
+                error: 'AI Service Timeout',
+                details: 'The AI service took too long to respond (likely spinning up).'
+            });
+        }
+
+        res.status(502).json({
+            error: 'AI Proxy Error',
+            details: error.message
+        });
     }
 });
 
