@@ -10,9 +10,9 @@ export const API_BASE_URL =
 
 // Unified AI Service Defaults
 // In the new unified architecture, all AI endpoints likely sit behind one URL.
-// We allow individual overrides but default to the unified service URL.
+// We proxy everything through the Node Backend to avoid mixed content & CORS issues.
 const DEFAULT_AI_URL =
-    cleanUrl(import.meta.env.VITE_AI_SERVICE_URL) || "http://localhost:8000";
+    cleanUrl(import.meta.env.VITE_AI_SERVICE_URL) || `${API_BASE_URL}/api/unified`;
 
 // Export all model URLs to satisfy imports across the frontend
 export const UNIFIED_MODEL_URL =
