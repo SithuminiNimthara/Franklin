@@ -3,13 +3,13 @@ import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin } from 'lu
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
-import { API_BASE_URL, DISEASE_MODEL_URL } from '../../shared/config';
+import { API_BASE_URL, getAiUrl } from '../../shared/config';
 
 function HealthStats() {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/health/stats`)
+    fetch(`${API_BASE_URL}/api/health/stats`)
       .then(res => res.json())
       .then(data => setStats(data))
       .catch(err => console.error("Failed to fetch stats", err));
@@ -84,7 +84,7 @@ export default function TurtleHealthPage() {
     formData.append('file', selectedImage);
 
     try {
-      const response = await fetch(`${DISEASE_MODEL_URL}/classify`, {
+      const response = await fetch(getAiUrl('/ai/disease/classify'), {
         method: 'POST',
         body: formData,
       });
