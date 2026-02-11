@@ -52,19 +52,19 @@ router.post('/analyze', async (req, res) => {
         if (error.code === 'ECONNREFUSED') {
             return res.status(502).json({
                 error: 'AI Service Unavailable',
-                details: 'Connection refused. Check AI_SERVICE_URL settings.'
+                details: `Connection refused to ${targetUrl}. Check AI_SERVICE_URL env var.`
             });
         }
         if (error.code === 'ETIMEDOUT') {
             return res.status(504).json({
                 error: 'AI Service Timeout',
-                details: 'The AI service took too long to respond (likely spinning up).'
+                details: `Timeout connecting to ${targetUrl}. Service might be waking up.`
             });
         }
 
         res.status(502).json({
             error: 'AI Proxy Error',
-            details: error.message
+            details: `${error.message} (Target: ${targetUrl})`
         });
     }
 });

@@ -5,8 +5,9 @@
 const cleanUrl = (url) => (url ? url.replace(/\/+$/, "") : "");
 
 // Backend API (Node)
+// Default to the known Render URL if env var is missing (Production Fallback)
 export const API_BASE_URL =
-    cleanUrl(import.meta.env.VITE_API_BASE_URL) || "http://localhost:5002";
+    cleanUrl(import.meta.env.VITE_API_BASE_URL) || "https://franklin-backend-v0i3.onrender.com";
 
 // Unified AI Service Defaults
 // In the new unified architecture, all AI endpoints likely sit behind one URL.
