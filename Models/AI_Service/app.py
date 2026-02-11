@@ -123,6 +123,23 @@ def get_disease_disabled():
 # ---------------------------
 # Health
 # ---------------------------
+@app.get("/")
+def root():
+    return {
+        "service": "Franklin AI Service",
+        "status": "running",
+        "endpoints": [
+            "/health",
+            "/ai/unified/analyze",
+            "/ai/disease/classify",
+            "/ai/shoreline/predict",
+            "/ai/hatchery/register_upload",
+            "/ai/hatchery/stream/{video_id}",
+            "/ai/hatchery/data/{video_id}",
+        ],
+    }
+
+
 @app.get("/health")
 def health():
     return {

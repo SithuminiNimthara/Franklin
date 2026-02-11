@@ -1,6 +1,8 @@
 // Centralized API Configuration
 // Ensure VITE_API_BASE_URL is set in .env for production
-// e.g. https://franklin-backend.onrender.com
+// e.g. https://franklin-backend-v0i3.onrender.com
+// Ensure VITE_AI_SERVICE_URL is set in .env for production
+// e.g. https://franklin-ai.onrender.com
 
 const cleanUrl = (url) => (url ? url.replace(/\/+$/, "") : "");
 
@@ -8,11 +10,14 @@ const cleanUrl = (url) => (url ? url.replace(/\/+$/, "") : "");
 export const API_BASE_URL =
     cleanUrl(import.meta.env.VITE_API_BASE_URL) || "http://localhost:5002";
 
-// Unified AI Service Defaults
-// In the new unified architecture, all AI endpoints likely sit behind one URL.
-// We allow individual overrides but default to the unified service URL.
-const DEFAULT_AI_URL =
+// AI Service (FastAPI)
+export const AI_BASE_URL =
     cleanUrl(import.meta.env.VITE_AI_SERVICE_URL) || "http://localhost:8000";
+
+// Unified AI Service Defaults
+// In the new unified architecture, all AI endpoints sit behind one URL.
+// We allow individual overrides but default to the unified service URL.
+const DEFAULT_AI_URL = AI_BASE_URL;
 
 // Export all model URLs to satisfy imports across the frontend
 export const UNIFIED_MODEL_URL =
@@ -34,3 +39,7 @@ export const getHatcheryDataUrl = (tankId) => `${API_BASE_URL}/data/${tankId}`;
 // Generic API URL builder
 export const getApiUrl = (endpoint) =>
     `${API_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
+
+// AI Service URL builder
+export const getAiUrl = (endpoint) =>
+    `${AI_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
