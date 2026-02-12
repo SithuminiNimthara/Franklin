@@ -1,45 +1,58 @@
-// Centralized API Configuration
-// Ensure VITE_API_BASE_URL is set in .env for production
-// e.g. https://franklin-backend-v0i3.onrender.com
-// Ensure VITE_AI_SERVICE_URL is set in .env for production
-// e.g. https://franklin-ai.onrender.com
+// ==============================
+// Franklin Centralized API Config
+// ==============================
 
+// Clean trailing slash
 const cleanUrl = (url) => (url ? url.replace(/\/+$/, "") : "");
 
-// Backend API (Node)
+// ------------------------------
+// ENV VARIABLES
+// ------------------------------
+// These MUST be set in Render (Frontend Service):
+// VITE_API_BASE_URL=https://franklin-backend-v0i3.onrender.com
+// VITE_AI_BASE_URL=https://franklin-ai.onrender.com
+
+// Node Backend (Express)
+const RAW_API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "";
+
 export const API_BASE_URL =
-    cleanUrl(import.meta.env.VITE_API_BASE_URL) || "http://localhost:5002";
+  cleanUrl(RAW_API_BASE) ||
+  (import.meta.env.DEV ? "http://localhost:5002" : "");
 
-// AI Service (FastAPI)
+// AI Backend (FastAPI)
+const RAW_AI_BASE =
+  import.meta.env.VITE_AI_BASE_URL || "";
+
 export const AI_BASE_URL =
-    cleanUrl(import.meta.env.VITE_AI_SERVICE_URL) || "http://localhost:8000";
+  cleanUrl(RAW_AI_BASE) ||
+  (import.meta.env.DEV ? "http://localhost:8000" : "");
 
-// Unified AI Service Defaults
-// In the new unified architecture, all AI endpoints sit behind one URL.
-// We allow individual overrides but default to the unified service URL.
-const DEFAULT_AI_URL = AI_BASE_URL;
+// ------------------------------
+// Model URLs (All use AI base)
+// ------------------------------
 
-// Export all model URLs to satisfy imports across the frontend
-export const UNIFIED_MODEL_URL =
-    cleanUrl(import.meta.env.VITE_UNIFIED_MODEL_URL) || DEFAULT_AI_URL;
+export const UNIFIED_MODEL_URL = AI_BASE_URL;
+export const DISEASE_MODEL_URL = AI_BASE_URL;
+export const SHORELINE_MODEL_URL = AI_BASE_URL;
+export const HATCHERY_MODEL_URL = AI_BASE_URL;
 
-export const DISEASE_MODEL_URL =
-    cleanUrl(import.meta.env.VITE_DISEASE_MODEL_URL) || DEFAULT_AI_URL;
+// ------------------------------
+// Backend Route Builders
+// ------------------------------
 
-export const SHORELINE_MODEL_URL =
-    cleanUrl(import.meta.env.VITE_SHORELINE_MODEL_URL) || DEFAULT_AI_URL;
-
-export const HATCHERY_MODEL_URL =
-    cleanUrl(import.meta.env.VITE_HATCHERY_MODEL_URL) || DEFAULT_AI_URL;
-
-// Helper to build consistent Stream/Data URLs (proxied via Backend)
-export const getStreamUrl = (tankId) => `${API_BASE_URL}/stream/${tankId}`;
-export const getHatcheryDataUrl = (tankId) => `${API_BASE_URL}/data/${tankId}`;
-
-// Generic API URL builder
+// Generic Node API builder
 export const getApiUrl = (endpoint) =>
-    `${API_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
+  `${API_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
 
-// AI Service URL builder
+// Generic AI API builder
 export const getAiUrl = (endpoint) =>
-    `${AI_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
+  `${AI_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
+
+// Tank stream URL (Node backend must implement this)
+export const getStreamUrl = (tankId) =>
+  `${API_BASE_URL}/streams/${tankId}/stream.m3u8`;
+
+// Hatchery data URL
+export const getHatcheryDataUrl = (tankId) =>
+  `${API_BASE_URL}/data/${tankId}`;
