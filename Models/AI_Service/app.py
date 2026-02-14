@@ -41,15 +41,15 @@ os.environ.setdefault("YOLO_CONFIG_DIR", "/tmp/Ultralytics")
 
 # Model Weight URLs (Set in Render env)
 WEIGHT_URLS = {
-    "turtle": os.environ.get("UNIFIED_TURTLE_URL"),
-    "predator": os.environ.get("UNIFIED_PREDATOR_URL"),
+    "unified_turtle": os.environ.get("UNIFIED_TURTLE_URL"),
+    "unified_predator": os.environ.get("UNIFIED_PREDATOR_URL"),
     "shoreline": os.environ.get("SHORELINE_URL"),
     "hatchery": os.environ.get("HATCHERY_URL"),
 }
 
 MODEL_PATHS = {
-    "turtle": os.path.join(MODELS_DIR, "turtle.pt"),
-    "predator": os.path.join(MODELS_DIR, "predator.pt"),
+    "unified_turtle": os.path.join(MODELS_DIR, "unified_turtle.pt"),
+    "unified_predator": os.path.join(MODELS_DIR, "unified_predator.pt"),
     "shoreline": os.path.join(MODELS_DIR, "shoreline_seg.pt"),
     "hatchery": os.path.join(MODELS_DIR, "hatchery_best.pt"),
 }
@@ -101,11 +101,11 @@ def ensure_weight_exists(model_key):
 def get_unified():
     global unified_processor
     if unified_processor is None:
-        ensure_weight_exists("turtle")
-        ensure_weight_exists("predator")
+        ensure_weight_exists("unified_turtle")
+        ensure_weight_exists("unified_predator")
         
         # Check files again
-        if not (os.path.exists(MODEL_PATHS["turtle"]) and os.path.exists(MODEL_PATHS["predator"])):
+        if not (os.path.exists(MODEL_PATHS["unified_turtle"]) and os.path.exists(MODEL_PATHS["unified_predator"])):
             raise HTTPException(503, "Unified model weights missing. Check /health for details.")
             
         try:
