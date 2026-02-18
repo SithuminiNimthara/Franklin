@@ -1,0 +1,125 @@
+import { spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs';
+import { config } from '../../config/env.js';
+import { Camera } from '../cameras/camera.model.js';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+const ffmpegPath = ffmpegInstaller.path;
+
+class StreamingService {
+    constructor() {
+        this.processes = new Map();
+        this.ensureStreamDir();
+    }
+
+    ensureStreamDir() {
+        if (!fs.existsSync(config.streamDir)) {
+            fs.mkdirSync(config.streamDir, { recursive: true });
+        }
+    }
+
+    async startAllCameras() {
+        try {
+            const cameras = await Camera.find({ isEnabled: true });
+            console.log(`Starting ${cameras.length} cameras...`);
+            for (const camera of cameras) {
+                this.startCamera({
+                    id: camera._id.toString(),
+                    rtspUrl: camera.rtspUrl
+                });
+            }
+        } catch (error) {
+            console.error('Error starting all cameras:', error);
+        }
+    }
+
+    startCamera({ id, rtspUrl }) {
+        if (this.processes.has(id)) {
+            console.log(`Camera ${id} is already streaming.`);
+            return;
+        }
+
+        const cameraDir = path.join(config.streamDir, id);
+        if (!fs.existsSync(cameraDir)) {
+            fs.mkdirSync(cameraDir, { recursive: true });
+        }
+
+        const playlistPath = path.join(cameraDir, 'index.m3u8');
+
+        // FFmpeg command to convert RTSP to HLS
+        const ffmpegArgs = [
+            '-rtsp_transport', 'tcp',
+            '-i', rtspUrl,
+            '-c:v', 'copy',
+            '-c:a', 'none',
+            '-f', 'hls',
+            '-hls_time', '2',
+            '-hls_list_size', '3',
+            '-hls_flags', 'delete_segments',
+            '-hls_segment_filename', path.join(cameraDir, 'seg_%d.ts'),
+            playlistPath
+        ];
+
+        console.log(`Starting streaming for camera ${id}...`);
+        const process = spawn(ffmpegPath, ffmpegArgs);
+
+        process.stdout.on('data', (data) => {
+            // console.log(`[Camera ${id}] stdout: ${data}`);
+        });
+
+        process.stderr.on('data', (data) => {
+            // console.error(`[Camera ${id}] stderr: ${data}`);
+        });
+
+        process.on('close', (code) => {
+            console.log(`[Camera ${id}] ffmpeg process exited with code ${code}`);
+            this.processes.delete(id);
+        });
+
+        this.processes.set(id, {
+            process,
+            startTime: new Date(),
+            rtspUrl
+        });
+    }
+
+    stopCamera(id) {
+        const cameraProcess = this.processes.get(id);
+        if (cameraProcess) {
+            console.log(`Stopping streaming for camera ${id}...`);
+            cameraProcess.process.kill('SIGTERM');
+            this.processes.delete(id);
+        }
+    }
+
+    getStatus() {
+        const status = [];
+        this.processes.forEach((value, key) => {
+            status.push({
+                id: key,
+                startTime: value.startTime,
+                rtspUrl: value.rtspUrl,
+                active: true
+            });
+        });
+        return status;
+    }
+
+    getHealth(id) {
+        const cameraProcess = this.processes.get(id);
+        if (!cameraProcess) return { active: false };
+
+        const cameraDir = path.join(config.streamDir, id);
+        const playlistPath = path.join(cameraDir, 'index.m3u8');
+        const exists = fs.existsSync(playlistPath);
+
+        return {
+            active: true,
+            startTime: cameraProcess.startTime,
+            playlistExists: exists,
+            lastUpdate: exists ? fs.statSync(playlistPath).mtime : null
+        };
+    }
+}
+
+export const streamingService = new StreamingService();
