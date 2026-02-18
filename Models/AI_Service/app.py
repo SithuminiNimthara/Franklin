@@ -44,9 +44,9 @@ NODE_BACKEND_URL = clean_url(NODE_BACKEND_URL)
 AI_SERVICE_URL = clean_url(AI_SERVICE_URL)
 
 MODEL_PATHS = {
-    "unified_turtle": os.path.join(MODELS_DIR, "unified_turtle.pt"),
-    "unified_predator": os.path.join(MODELS_DIR, "unified_predator.pt"),
-    # disease disabled in this deploy-safe version
+    "turtle": os.path.join(MODELS_DIR, "turtle.pt"),
+    "predator": os.path.join(MODELS_DIR, "predator.pt"),
+    "human": os.path.join(MODELS_DIR, "human.pt"),
     "shoreline": os.path.join(MODELS_DIR, "shoreline_seg.pt"),
     "hatchery": os.path.join(MODELS_DIR, "hatchery_best.pt"),
 }
@@ -61,8 +61,22 @@ hatchery_engine = None
 
 @app.on_event("startup")
 async def startup_event():
-    # IMPORTANT: Keep startup fast so Render detects the open port.
-    print("Franklin AI Service starting... (FAST START, lazy models)")
+    print("Franklin AI Service starting... Pre-loading models if available.")
+    # Attempt pre-loading (it's okay if they fail here, they'll retry lazily or report 503)
+    try:
+        get_unified()
+        print("✅ Unified models pre-loaded")
+    except Exception: pass
+
+    try:
+        get_shoreline()
+        print("✅ Shoreline model pre-loaded")
+    except Exception: pass
+
+    try:
+        get_hatchery()
+        print("✅ Hatchery model pre-loaded")
+    except Exception: pass
 
 
 # ---------------------------
@@ -73,8 +87,10 @@ def get_unified():
     if unified_processor is None:
         try:
             from models.unified import UnifiedProcessor
-            unified_processor = UnifiedProcessor(MODELS_DIR, NODE_BACKEND_URL)
-            print("✅ UnifiedProcessor loaded lazily")
+            # Append detections endpoint
+            detections_url = f"{NODE_BACKEND_URL}/api/detections" if NODE_BACKEND_URL else ""
+            unified_processor = UnifiedProcessor(MODELS_DIR, detections_url)
+            print(f"✅ UnifiedProcessor loaded (URL: {detections_url})")
         except Exception as e:
             print(f"❌ Unified init failed: {e}")
             raise HTTPException(503, f"Unified processor load failed: {e}")
@@ -104,8 +120,10 @@ def get_hatchery():
     if hatchery_engine is None:
         try:
             from models.hatchery import HatcheryEngine
-            hatchery_engine = HatcheryEngine(MODEL_PATHS["hatchery"], NODE_BACKEND_URL)
-            print("✅ HatcheryEngine loaded lazily")
+            # Append hatchery API endpoint
+            hatchery_url = f"{NODE_BACKEND_URL}/api/hatchery" if NODE_BACKEND_URL else ""
+            hatchery_engine = HatcheryEngine(MODEL_PATHS["hatchery"], hatchery_url)
+            print(f"✅ HatcheryEngine loaded (URL: {hatchery_url})")
         except Exception as e:
             print(f"❌ Hatchery init failed: {e}")
             raise HTTPException(503, f"Hatchery engine load failed: {e}")
