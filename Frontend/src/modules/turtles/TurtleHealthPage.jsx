@@ -9,7 +9,7 @@ function HealthStats() {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/health/stats`)
+    fetch(`${API_BASE_URL}/api/health/stats`)
       .then(res => res.json())
       .then(data => setStats(data))
       .catch(err => console.error("Failed to fetch stats", err));
@@ -84,7 +84,7 @@ export default function TurtleHealthPage() {
     formData.append('file', selectedImage);
 
     try {
-      const response = await fetch(`${DISEASE_MODEL_URL}/classify`, {
+      const response = await fetch(`${DISEASE_MODEL_URL}/ai/disease/classify`, {
         method: 'POST',
         body: formData,
       });
@@ -93,7 +93,7 @@ export default function TurtleHealthPage() {
       const data = await response.json();
       setAnalysisResult(data);
 
-      await fetch(`${API_BASE_URL}/health/save`, {
+      await fetch(`${API_BASE_URL}/api/health/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

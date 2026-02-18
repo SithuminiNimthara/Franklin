@@ -131,11 +131,17 @@ def get_hatchery():
 
 
 def get_disease_disabled():
-    # Tensorflow/Keras removed for deploy success
-    raise HTTPException(
-        503,
-        "Disease model disabled on Render (tensorflow removed). Use TFLite runtime to enable later."
-    )
+    # Tensorflow/Keras removed for deploy success on Render free tier
+    return {
+        "class": "Model Disabled",
+        "confidence": 0.0,
+        "probabilities": {
+            "healthy": 0.0,
+            "fp": 0.0,
+            "barnacles": 0.0
+        },
+        "note": "Disease detection is currently disabled in cloud production to meet resource limits."
+    }
 
 
 # ---------------------------
