@@ -3,19 +3,16 @@ import shutil
 import uuid
 import numpy as np
 import cv2
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request, BackgroundTasks
+import requests
+import time
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
-from pydantic import BaseModel
-from typing import Dict, Any
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 
-# Local Modules
-from models.unified import UnifiedProcessor
-from models.disease import DiseaseClassifier
-from models.shoreline import ShorelineModel, ShorelineSettings
-from models.hatchery import HatcheryEngine
-
-app = FastAPI(title="Franklin AI Service (Merged)")
+# ---------------------------
+# App Initialization
+# ---------------------------
+app = FastAPI(title="Franklin AI Service (Production)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,217 +22,267 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Configuration ---
+# ---------------------------
+# Configuration
+# ---------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELS_DIR = os.path.join(BASE_DIR, "models_data") # Store weights here
+MODELS_DIR = os.path.join(BASE_DIR, "models_data")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+
 os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-NODE_BACKEND_URL = os.environ.get("NODE_BACKEND_URL") # Provided by Render manually
-AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL") # Self URL
+# Render environment variables
+NODE_BACKEND_URL = (os.environ.get("NODE_BACKEND_URL") or "").strip().rstrip("/")
+AI_SERVICE_URL = (os.environ.get("AI_SERVICE_URL") or "").strip().rstrip("/")
 
-# Map existing model paths or download logic
-# In merged repo on Render, we assume models are in MODELS_DIR or we configure paths.
+# If running on Render, ensure config dir is writeable
+os.environ.setdefault("YOLO_CONFIG_DIR", "/tmp/Ultralytics")
+
+# Model Weight URLs (Set in Render env)
+WEIGHT_URLS = {
+    "unified_turtle": os.environ.get("UNIFIED_TURTLE_URL"),
+    "unified_predator": os.environ.get("UNIFIED_PREDATOR_URL"),
+    "shoreline": os.environ.get("SHORELINE_URL"),
+    "hatchery": os.environ.get("HATCHERY_URL"),
+}
+
 MODEL_PATHS = {
     "unified_turtle": os.path.join(MODELS_DIR, "unified_turtle.pt"),
     "unified_predator": os.path.join(MODELS_DIR, "unified_predator.pt"),
-    "disease": os.path.join(MODELS_DIR, "disease_encoder.keras"),
-    "disease_support": os.path.join(MODELS_DIR, "disease_support"),
     "shoreline": os.path.join(MODELS_DIR, "shoreline_seg.pt"),
-    "hatchery": os.path.join(MODELS_DIR, "hatchery_best.pt")
+    "hatchery": os.path.join(MODELS_DIR, "hatchery_best.pt"),
 }
 
-# --- Service Instances ---
-# We initialize lazily or on startup. Ideally global singletons.
+# ---------------------------
+# Lazy Singletons
+# ---------------------------
 unified_processor = None
-disease_classifier = None
 shoreline_model = None
 hatchery_engine = None
 
 @app.on_event("startup")
 async def startup_event():
-    global unified_processor, disease_classifier, shoreline_model, hatchery_engine
-    print("Starting Franklin AI Service...")
+    print("✅ Franklin AI Service starting...")
+    # Fast startup! We don't load models here.
+
+# ---------------------------
+# Weight downloader
+# ---------------------------
+def ensure_weight_exists(model_key):
+    path = MODEL_PATHS.get(model_key)
+    if not path:
+        return False
     
-    # 1. Unified
-    unified_processor = UnifiedProcessor(MODELS_DIR, NODE_BACKEND_URL)
+    if os.path.exists(path) and os.path.getsize(path) > 1024:
+        return True
     
-    # 2. Disease
-    # Only init if model exists, or it handles its own fallback
-    disease_classifier = DiseaseClassifier(MODEL_PATHS["disease"], MODEL_PATHS["disease_support"])
+    url = WEIGHT_URLS.get(model_key)
+    if not url:
+        print(f"⚠️ Model weight missing: {model_key} and no URL provided in env.")
+        return False
     
-    # 3. Shoreline
-    # Shoreline needs a specific settings object
+    print(f"⬇️ Downloading weight for {model_key} from {url}")
     try:
-        if os.path.exists(MODEL_PATHS["shoreline"]):
+        r = requests.get(url, stream=True, timeout=30)
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(f"✅ Success: {model_key}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to download {model_key}: {e}")
+        return False
+
+# ---------------------------
+# Lazy Loaders
+# ---------------------------
+def get_unified():
+    global unified_processor
+    if unified_processor is None:
+        ensure_weight_exists("unified_turtle")
+        ensure_weight_exists("unified_predator")
+        
+        # Check files again
+        if not (os.path.exists(MODEL_PATHS["unified_turtle"]) and os.path.exists(MODEL_PATHS["unified_predator"])):
+            raise HTTPException(503, "Unified model weights missing. Check /health for details.")
+            
+        try:
+            from models.unified import UnifiedProcessor
+            unified_processor = UnifiedProcessor(MODELS_DIR, NODE_BACKEND_URL)
+            print("✅ UnifiedProcessor initialized")
+        except Exception as e:
+            raise HTTPException(503, f"Failed to Load Unified Processor: {e}")
+    return unified_processor
+
+def get_shoreline():
+    global shoreline_model
+    if shoreline_model is None:
+        ensure_weight_exists("shoreline")
+        if not os.path.exists(MODEL_PATHS["shoreline"]):
+            raise HTTPException(503, "Shoreline weights missing.")
+            
+        try:
+            from models.shoreline import ShorelineModel, ShorelineSettings
             settings = ShorelineSettings(model_path=MODEL_PATHS["shoreline"])
             shoreline_model = ShorelineModel(settings)
-            print("Shoreline model loaded.")
-        else:
-            print("Shoreline model not found, skipping.")
-    except Exception as e:
-        print(f"Shoreline init error: {e}")
+            print("✅ ShorelineModel initialized")
+        except Exception as e:
+            raise HTTPException(503, f"Failed to load Shoreline model: {e}")
+    return shoreline_model
 
-    # 4. Hatchery
-    # Uses YOLO
-    try:
-        hatchery_engine = HatcheryEngine(MODEL_PATHS["hatchery"], NODE_BACKEND_URL)
-        print("Hatchery engine loaded.")
-    except Exception as e:
-        print(f"Hatchery init error: {e}")
+def get_hatchery():
+    global hatchery_engine
+    if hatchery_engine is None:
+        ensure_weight_exists("hatchery")
+        if not os.path.exists(MODEL_PATHS["hatchery"]):
+            raise HTTPException(503, "Hatchery weights missing.")
+            
+        try:
+            from models.hatchery import HatcheryEngine
+            hatchery_engine = HatcheryEngine(MODEL_PATHS["hatchery"], NODE_BACKEND_URL)
+            print("✅ HatcheryEngine initialized")
+        except Exception as e:
+            raise HTTPException(503, f"Failed to load Hatchery engine: {e}")
+    return hatchery_engine
 
-@app.get("/health")
-def health():
+# ---------------------------
+# Routes
+# ---------------------------
+
+@app.get("/")
+def root():
     return {
-        "status": "ok",
-        "service": "Franklin AI Combined",
-        "models": {
-            "unified": unified_processor is not None,
-            "disease": disease_classifier is not None,
-            "shoreline": shoreline_model is not None,
-            "hatchery": hatchery_engine is not None
-        }
+        "service": "Franklin AI Service", 
+        "status": "online",
+        "endpoints": ["/health", "/ai/unified/analyze", "/ai/shoreline/predict", "/ai/hatchery/register_upload"]
     }
 
-# --- UNIFIED ENDPOINTS ---
+@app.get("/health")
+def health(request: Request):
+    return {
+        "status": "ok",
+        "env": {
+            "node_backend": NODE_BACKEND_URL,
+            "ai_service_url": AI_SERVICE_URL,
+            "detected_base": str(request.base_url).rstrip("/")
+        },
+        "models": {
+            "unified": unified_processor is not None,
+            "shoreline": shoreline_model is not None,
+            "hatchery": hatchery_engine is not None,
+        },
+        "weights": {k: os.path.exists(v) for k, v in MODEL_PATHS.items()}
+    }
+
 @app.post("/ai/unified/analyze")
-async def analyze_unified(file: UploadFile = File(...)):
-    if not unified_processor:
-        raise HTTPException(503, "Unified processor not initialized")
+async def analyze_unified(request: Request, file: UploadFile = File(...)):
+    processor = get_unified()
     
     vid_id = uuid.uuid4().hex
     filename = f"{vid_id}.mp4"
     path = os.path.join(OUTPUT_DIR, filename)
-    
+
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
-        
+
     try:
-        result = unified_processor.process_video(path, filename)
-        result["video_url"] = f"{AI_SERVICE_URL}/content/{filename}" if AI_SERVICE_URL else f"/content/{filename}"
+        result = processor.process_video(path, filename)
+        
+        # Determine current base URL dynamically if env is missing
+        base = AI_SERVICE_URL or str(request.base_url).rstrip("/")
+        result["video_url"] = f"{base}/content/{filename}"
         return result
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, f"Analysis Error: {e}")
 
-# --- DISEASE ENDPOINTS ---
-@app.post("/ai/disease/classify")
-async def classify_disease(file: UploadFile = File(...)):
-    if not disease_classifier:
-        raise HTTPException(503, "Disease classifier not initialized")
-    
-    content = await file.read()
-    return disease_classifier.classify(content)
-
-# --- SHORELINE ENDPOINTS ---
 @app.post("/ai/shoreline/predict")
 async def predict_shoreline(file: UploadFile = File(...)):
-    if not shoreline_model:
-        raise HTTPException(503, "Shoreline model not initialized")
-        
+    shore = get_shoreline()
     content = await file.read()
     nparr = np.frombuffer(content, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(400, "Invalid image")
-        
-    pts, conf, mask_b64 = shoreline_model.predict(img)
     
-    # Compute risk manually here if needed or move logic to model
+    if img is None:
+        raise HTTPException(400, "Could not decode image.")
+
+    pts, conf, mask_b64 = shore.predict(img)
+    
     h = img.shape[0]
     risk_level = "low"
-    notes = ["Shoreline detected."]
     if pts:
-        ys = [p["y"] for p in pts]
-        avg = np.mean(ys)
-        if avg < h * 0.35: risk_level = "high"
-        elif avg < h * 0.55: risk_level = "medium"
-        
+        ys = [p.get("y") for p in pts if isinstance(p, dict) and "y" in p]
+        ys = [y for y in ys if y is not None]
+        if ys:
+            avg = float(np.mean(ys))
+            if avg < h * 0.35: risk_level = "high"
+            elif avg < h * 0.55: risk_level = "medium"
+
     return {
         "shoreline_points": pts,
         "shoreline_conf": conf,
         "risk_level": risk_level,
-        "notes": notes,
+        "notes": ["Shoreline detected."],
         "mask_png_b64": mask_b64,
-        "image": {"w": img.shape[1], "h": img.shape[0]}
+        "image": {"w": img.shape[1], "h": img.shape[0]},
     }
 
-# --- HATCHERY ENDPOINTS ---
 @app.post("/ai/hatchery/register_upload")
 async def register_hatchery(request: Request):
-    if not hatchery_engine:
-        raise HTTPException(503, "Hatchery engine not initialized")
-    
+    hatchery = get_hatchery()
     data = await request.json()
-    vid_id = data.get("videoId")
-    vid_path = data.get("videoPath")
+    vid_id, vid_path = data.get("videoId"), data.get("videoPath")
     
-    if hatchery_engine.register_video(vid_id, vid_path):
+    if not vid_id or not vid_path:
+        raise HTTPException(400, "videoId and videoPath are required.")
+
+    if hatchery.register_video(vid_id, vid_path):
         return {"status": "registered", "videoId": vid_id}
-    else:
-        raise HTTPException(500, "Failed to register video")
+    raise HTTPException(500, "Registration failed.")
 
 @app.get("/ai/hatchery/stream/{video_id}")
 def stream_hatchery(video_id: str):
-    if not hatchery_engine:
-        raise HTTPException(503, "Hatchery engine not initialized")
-    
-    # This needs to yield a generator. 
-    # Flask Response vs FastAPI StreamingResponse
-    from fastapi.responses import StreamingResponse
+    hatchery = get_hatchery()
     
     def iter_frames():
-        # Adapting the generator from hatchery.py which was originally built for Flask
-        # We need to ensure generate_frames is compatible or migrated fully
-        # For now, let's assume we copy logic or import it.
-        # But hatchery.py provided earlier didn't have generate_frames, it had process_frame.
-        # We need to construct a loop here or in the engine.
+        src = hatchery.video_sources.get(video_id)
+        if not src: return
         
-        # NOTE: Real-time streaming on Render Free tier might be slow/timeout.
-        # But for compliance we implement it.
-        
-        # Re-implement simple loop using HatcheryEngine's process_frame
-        path = hatchery_engine.video_sources.get(video_id)
-        if not path: return
-        
-        # If path is HTTP, open it
-        cap = cv2.VideoCapture(path)
+        cap = cv2.VideoCapture(src)
         fps = cap.get(cv2.CAP_PROP_FPS) or 30
-        
         while cap.isOpened():
-            success, frame = cap.read()
-            if not success:
+            ok, frame = cap.read()
+            if not ok:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 continue
-                
-            frame = hatchery_engine.process_frame(frame, video_id, fps)
             
+            frame = hatchery.process_frame(frame, video_id, fps)
             _, buf = cv2.imencode(".jpg", frame)
-            yield (b"--frame\r\n"
-                   b"Content-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
-            
-            # Simple throttle
-            # time.sleep(1/fps) # In async fastAPI this might block event loop if not careful
-            # But StreamingResponse runs in a separate thread usually.
+            yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
             
         cap.release()
-
     return StreamingResponse(iter_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 @app.get("/ai/hatchery/data/{video_id}")
 def data_hatchery(video_id: str):
-    if not hatchery_engine: raise HTTPException(503, "Hatchery engine not initialized")
-    s = hatchery_engine.states.get(video_id, {"status": "Offline", "health": "Unknown", "species": "Unknown"})
-    return s
+    hatchery = get_hatchery()
+    return hatchery.states.get(video_id, {"status": "Offline", "health": "Unknown"})
 
 @app.get("/content/{filename}")
 async def get_content(filename: str):
     path = os.path.join(OUTPUT_DIR, filename)
     if os.path.exists(path):
         return FileResponse(path)
-    raise HTTPException(404)
+    raise HTTPException(404, "Content not found.")
+
+@app.post("/ai/disease/classify")
+async def classify_disease():
+    return JSONResponse(
+        status_code=503,
+        content={"message": "Disease model is currently disabled in this lightweight deployment."}
+    )
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))

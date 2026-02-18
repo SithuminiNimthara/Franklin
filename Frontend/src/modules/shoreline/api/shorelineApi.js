@@ -1,19 +1,7 @@
 // shorelineApi.js
 
-const RAW_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5002";
-
-// ✅ normalize base (prevents ":5002" and missing protocol)
-export const API_BASE = (() => {
-  let b = String(RAW_BASE || "").trim();
-
-  if (b.startsWith(":")) b = `http://localhost${b}`;
-  if (b && !b.startsWith("http://") && !b.startsWith("https://")) {
-    b = `http://${b}`;
-  }
-  if (!b) b = "http://localhost:5002";
-
-  return b.replace(/\/+$/, "");
-})();
+// shorelineApi.js
+import { API_BASE_URL as API_BASE } from "../../../shared/config";
 
 // ✅ safe response reader
 async function safeBody(res) {
