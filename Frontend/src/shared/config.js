@@ -28,8 +28,8 @@ export const HATCHERY_MODEL_URL =
     cleanUrl(import.meta.env.VITE_HATCHERY_MODEL_URL) || DEFAULT_AI_URL;
 
 // Helper to build consistent Stream/Data URLs (proxied via Backend)
-export const getStreamUrl = (tankId) => `${API_BASE_URL}/stream/${tankId}`;
-export const getHatcheryDataUrl = (tankId) => `${API_BASE_URL}/data/${tankId}`;
+export const getStreamUrl = (tankId) => `${API_BASE_URL}/api/hatchery/stream/${tankId}`;
+export const getHatcheryDataUrl = (tankId) => `${API_BASE_URL}/api/hatchery/data/${tankId}`;
 
 // Generic API URL builder
 export const getApiUrl = (endpoint) =>

@@ -22,7 +22,7 @@ export default function HatcheryPage() {
 
   useEffect(() => {
     const fetchTodayAlerts = () => {
-      fetch(`${API_BASE_URL}/hatchery/alerts`)
+      fetch(`${API_BASE_URL}/api/hatchery/alerts`)
         .then((res) => res.json())
         .then((data) => {
           const today = new Date().toDateString();

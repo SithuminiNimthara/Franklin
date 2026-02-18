@@ -11,7 +11,7 @@ export default function HatcheryReportItem({ report }) {
   const generatePDF = async () => {
     setStatus("Generating");
     try {
-      const response = await fetch(`${API_BASE_URL}/hatchery/report/hatchery`);
+      const response = await fetch(`${API_BASE_URL}/api/hatchery/report/hatchery`);
       const result = await response.json();
       if (!result.success) throw new Error();
       const data = result.data;

@@ -196,6 +196,18 @@ async def classify_disease(file: UploadFile = File(...)):
 # ---------------------------
 # SHORELINE ENDPOINTS
 # ---------------------------
+def shoreline_compute_risk(points: list, img_h: int) -> tuple:
+    if not points:
+        return "medium", ["No shoreline detected."]
+    ys = [p["y"] for p in points]
+    avg_y = float(np.mean(ys))
+    if avg_y < img_h * 0.35:
+        return "high", ["Shoreline inland (high runup)."]
+    if avg_y < img_h * 0.55:
+        return "medium", ["Moderate shoreline position."]
+    return "low", ["Shoreline near sea (low runup)."]
+
+
 @app.post("/ai/shoreline/predict")
 async def predict_shoreline(file: UploadFile = File(...)):
     shore = get_shoreline()
@@ -207,29 +219,82 @@ async def predict_shoreline(file: UploadFile = File(...)):
         raise HTTPException(400, "Invalid image")
 
     pts, conf, mask_b64 = shore.predict(img)
-
-    # Simple risk logic
-    h = img.shape[0]
-    risk_level = "low"
-    notes = ["Shoreline detected."]
-
-    if pts:
-        ys = [p["y"] for p in pts if "y" in p]
-        if ys:
-            avg = float(np.mean(ys))
-            if avg < h * 0.35:
-                risk_level = "high"
-            elif avg < h * 0.55:
-                risk_level = "medium"
+    risk_level, notes = shoreline_compute_risk(pts, img.shape[0])
 
     return {
         "shoreline_points": pts,
-        "shoreline_conf": conf,
+        "shoreline_conf": float(conf),
         "risk_level": risk_level,
         "notes": notes,
         "mask_png_b64": mask_b64,
         "image": {"w": img.shape[1], "h": img.shape[0]},
     }
+
+
+@app.post("/ai/shoreline/predict-video")
+async def predict_video_shoreline(file: UploadFile = File(...)):
+    shore = get_shoreline()
+    content = await file.read()
+
+    # Save to temp
+    import tempfile
+    suffix = "." + file.filename.split(".")[-1] if "." in file.filename else ".mp4"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        cap = cv2.VideoCapture(tmp_path)
+        if not cap.isOpened():
+            raise HTTPException(400, "Could not open video file (unsupported codec or corrupted file)")
+
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        sample_every = max(1, int(fps // 2))
+
+        frames_out = []
+        idx = 0
+        while True:
+            ok, frame = cap.read()
+            if not ok: break
+
+            if idx % sample_every == 0:
+                try:
+                    h, w = frame.shape[:2]
+                    pts, conf, mask_b64 = shore.predict(frame)
+                    risk, notes = shoreline_compute_risk(pts, h)
+                    t = idx / fps
+
+                    frames_out.append({
+                        "t": float(t),
+                        "shoreline_points": pts,
+                        "shoreline_conf": float(conf),
+                        "mask_png_b64": mask_b64,
+                        "risk_level": risk,
+                        "notes": notes,
+                        "image": {"w": w, "h": h},
+                        "frame_index": int(idx)
+                    })
+                except Exception as e:
+                    print(f"Frame {idx} prediction failed: {e}")
+                
+                if len(frames_out) >= 300: break
+            idx += 1
+        cap.release()
+
+        return {
+            "mode": "video",
+            "fps": float(fps),
+            "total_frames": int(total_frames),
+            "frames": frames_out
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Video processing error: {e}")
+        raise HTTPException(500, f"Video processing error: {str(e)}")
+    finally:
+        if os.path.exists(tmp_path): os.remove(tmp_path)
 
 
 # ---------------------------

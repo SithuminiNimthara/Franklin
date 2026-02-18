@@ -33,7 +33,7 @@ import { environmentScore } from "./services/environmentRisk.service.js";
 import { notifyIfAllowed } from "./services/shorelineNotify.service.js";
 
 // ✅ python base url
-const PY_INFER_URL = process.env.PY_INFER_URL || "http://localhost:9000";
+const PY_INFER_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
 // ✅ resolve this module directory (ESM-safe)
 const __filename = fileURLToPath(import.meta.url);
@@ -164,7 +164,7 @@ export async function predictVideoProxy(req, res) {
     const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
     form.append("file", blob, req.file.originalname || "video.mp4");
 
-    const pyRes = await fetch(`${PY_INFER_URL}/predict-video`, {
+    const pyRes = await fetch(`${PY_INFER_URL}/ai/shoreline/predict-video`, {
       method: "POST",
       body: form,
     });
@@ -173,7 +173,7 @@ export async function predictVideoProxy(req, res) {
     let json = null;
     try {
       json = JSON.parse(text);
-    } catch {}
+    } catch { }
 
     return res.status(pyRes.status).json(json ?? { detail: text });
   } catch (e) {
@@ -201,7 +201,7 @@ export async function predictVideoDemo(req, res) {
     const blob = new Blob([buffer], { type: "video/mp4" });
     form.append("file", blob, name);
 
-    const pyRes = await fetch(`${PY_INFER_URL}/predict-video`, {
+    const pyRes = await fetch(`${PY_INFER_URL}/ai/shoreline/predict-video`, {
       method: "POST",
       body: form,
     });
@@ -210,7 +210,7 @@ export async function predictVideoDemo(req, res) {
     let json = null;
     try {
       json = JSON.parse(text);
-    } catch {}
+    } catch { }
 
     return res.status(pyRes.status).json(json ?? { detail: text });
   } catch (e) {

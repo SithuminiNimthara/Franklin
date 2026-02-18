@@ -24,7 +24,7 @@ export default function UploadAnalyzer() {
     const formData = new FormData();
     formData.append("video", file);
     try {
-      const response = await axios.post(`${API_BASE_URL}/hatchery/upload`, formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/hatchery/upload`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (e) => setProgress(Math.round((e.loaded * 100) / e.total)),
       });
@@ -49,7 +49,7 @@ export default function UploadAnalyzer() {
 
     const interval = setInterval(async () => {
       try {
-        const backendResponse = await fetch(`${API_BASE_URL}/hatchery/video-analysis/${videoId}`);
+        const backendResponse = await fetch(`${API_BASE_URL}/api/hatchery/video-analysis/${videoId}`);
         if (backendResponse.ok) {
           const mongoData = await backendResponse.json();
           console.log("MongoDB data:", mongoData); // Debug log
