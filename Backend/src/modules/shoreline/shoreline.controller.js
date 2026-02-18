@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { readJson, writeJson, nowIso, ensureDir } from "./utils/file.util.js";
 import { clamp } from "./utils/geo.util.js";
 import { uid } from "./utils/id.util.js";
+import { getUserPrimaryEmail } from "./utils/clerk.util.js";
 
 import { predictViaPython } from "./services/python.service.js";
 import { evaluateRisk } from "./services/risk.service.js";
@@ -64,9 +65,9 @@ function ensureDefaults() {
   const nests = readJson(NESTS_FILE, null);
   if (!Array.isArray(nests)) {
     writeJson(NESTS_FILE, [
-      { id: "nest-1", label: "Nest #234", x: 25, y: 40 },
-      { id: "nest-2", label: "Nest #189", x: 45, y: 55 },
-      { id: "nest-3", label: "Nest #201", x: 80, y: 60 },
+      { id: "nest-1", label: "Nest #234", x: 10, y: 46 }, // red
+      { id: "nest-2", label: "Nest #189", x: 18, y: 48 }, // orange
+      { id: "nest-3", label: "Nest #201", x: 70, y: 60 }, // green
     ]);
   }
 }
@@ -272,6 +273,22 @@ export async function evaluateOffline(req, res) {
       bufferPct,
     });
 
+    console.log("IMG META:", { imgW, imgH });
+    console.log("BUFFER:", bufferPct);
+    console.log("FIRST SHORELINE PCT:", shorelinePct?.slice(0, 5));
+
+    const withD = evaluation.nestsEvaluated || evaluation.nestsAtRisk || [];
+    console.log(
+      "NEST DISTANCES:",
+      withD.map((n) => ({
+        id: n.id,
+        label: n.label,
+        x: n.x,
+        y: n.y,
+        d: n.distancePct,
+      })),
+    );
+
     console.log("RISK EVALUATION RESULT:", {
       riskLevel: evaluation.riskLevel,
       boundaryCrossed: evaluation.boundaryCrossed,
@@ -325,9 +342,12 @@ export async function evaluateOffline(req, res) {
     let createdAlert = null;
 
     if (finalRisk === "high") {
-      const cooldownKey = evaluation.boundaryCrossed
+      const baseKey = evaluation.boundaryCrossed
         ? "shoreline_boundary_crossed"
         : "shoreline_nests_at_risk";
+
+      const userId = req.auth?.userId || "anon"; // 👈 logged-in user
+      const cooldownKey = `${userId}_${baseKey}`; // 👈 per-user cooldown
 
       createdAlert = await Alert.create({
         type: "shoreline",
@@ -337,19 +357,20 @@ export async function evaluateOffline(req, res) {
           : "Shoreline close to turtle nests",
         status: "new",
         source: "offline_image",
-        cooldownKey, // ✅ add this
+        cooldownKey, // ✅ UPDATED HERE
         details: {
           evaluation,
           bufferPct,
           boundary,
-          nests,
+          nests: evaluation.nestsEvaluated || nests,
+          nestsAtRiskCount:
+            evaluation.nestsAtRiskCount ?? evaluation.nestsAtRisk?.length ?? 0,
           shoreline: shorelinePct,
           image: { w: imgW, h: imgH },
           model: {
             shoreline_conf: body.shoreline_conf ?? null,
             notes: body.notes ?? null,
           },
-
           environment,
           envScore,
           visionScore,
@@ -365,11 +386,17 @@ export async function evaluateOffline(req, res) {
       } catch (e) {
         console.warn("Socket emit failed:", e?.message || e);
       }
-
-      // ✅ EMAIL notify (with cooldown protection)
+      // ✅ EMAIL notify (send to logged-in user's email)
       try {
-        const emailResult = await notifyIfAllowed({ alertDoc: createdAlert });
-        console.log("Email notify result:", emailResult);
+        const userId = req.auth?.userId || req.userId || null;
+        const userEmail = await getUserPrimaryEmail(userId);
+
+        const emailResult = await notifyIfAllowed({
+          alertDoc: createdAlert,
+          recipients: userEmail ? [userEmail] : [], // override
+        });
+
+        console.log("Email notify result:", emailResult, { userEmail, userId });
       } catch (e) {
         console.warn("Email notify failed:", e?.message || e);
       }

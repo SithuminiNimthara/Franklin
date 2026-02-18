@@ -16,16 +16,17 @@ if (
 }
 
 import http from "http";
-import { Server } from "socket.io";
+import { Server as SocketIOServer } from "socket.io";
 import app from "./app.js";
 import { config } from "./config/env.js";
 
 import { notificationService } from "./modules/notifications/notification.service.js";
 
-const server = http.createServer(app);
+// ✅ Create HTTP server using Express app
+const httpServer = http.createServer(app);
 
-// ✅ IMPORTANT: Export io so other modules can import it
-export const io = new Server(server, {
+// ✅ Export io so controllers can import it
+export const io = new SocketIOServer(httpServer, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
@@ -37,15 +38,15 @@ notificationService.setSocketIO(io);
 
 // ✅ Socket connect log
 io.on("connection", (socket) => {
-  console.log("Client connected for real-time alerts:", socket.id);
+  console.log("🟢 Client connected for real-time alerts:", socket.id);
 
   socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
+    console.log("🔴 Client disconnected:", socket.id);
   });
 });
 
-// ✅ Start server
-server.listen(config.port, "0.0.0.0", () => {
-  console.log(`Server running on http://localhost:${config.port}`);
-  console.log(`Accessible on LAN at http://<YOUR_LAN_IP>:${config.port}`);
+// ✅ FIX HERE: use httpServer.listen (not server.listen)
+httpServer.listen(config.port, "0.0.0.0", () => {
+  console.log(`🚀 Server running on http://localhost:${config.port}`);
+  console.log(`🌐 Accessible on LAN at http://<YOUR_LAN_IP>:${config.port}`);
 });

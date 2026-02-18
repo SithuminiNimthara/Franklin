@@ -19,13 +19,15 @@ import {
   predictDemoVideo,
 } from "./api/shorelineApi.js";
 
+import { useAuth } from "@clerk/clerk-react";
+
 const DEMO_VIDEO_SRC = "/videos/shoreline_demo.mp4";
 const DEMO_VIDEO_NAME = "shoreline_demo.mp4";
 
 function nestStatusFromDistance(d) {
   if (d == null) return "safe";
-  if (d <= 3) return "danger";
-  if (d <= 6) return "warning";
+  if (d <= 5) return "danger"; // red
+  if (d <= 8) return "warning"; // orange
   return "safe";
 }
 
@@ -48,6 +50,8 @@ export default function ShorelineRiskPage() {
   const [videoUrl, setVideoUrl] = useState("");
   const [frameSeriesPct, setFrameSeriesPct] = useState([]);
   const videoRef = useRef(null);
+
+  const { getToken } = useAuth();
 
   const loadStatic = async () => {
     try {
@@ -115,15 +119,23 @@ export default function ShorelineRiskPage() {
   const runOfflineEvaluation = async (file) => {
     setLoading(true);
     try {
+      const token = await getToken(); // ✅ Clerk JWT
+
       setVideoUrl("");
       setFrameSeriesPct([]);
-      const data = await evaluateOffline(file, 3);
+
+      const data = await evaluateOffline(file, 3, token); // ✅ pass token
+
       setShoreline(data?.shoreline || []);
       setCrossedBoundary(Boolean(data?.evaluation?.boundaryCrossed));
+
+      const evaluated = data?.evaluation?.nestsEvaluated || [];
+
       const riskMap = new Map();
-      for (const n of data?.evaluation?.nestsAtRisk || []) {
+      for (const n of evaluated) {
         riskMap.set(n.id, n.distancePct);
       }
+
       setNests((prev) =>
         prev.map((n) => {
           const d = riskMap.get(n.id);
@@ -134,11 +146,13 @@ export default function ShorelineRiskPage() {
           };
         }),
       );
+
       setLastUpdated(new Date().toLocaleTimeString());
+
       const freshAlerts = await getAlerts();
       setAlerts(freshAlerts || []);
     } catch (e) {
-      console.error(e);
+      console.error("Offline evaluation failed:", e);
     } finally {
       setLoading(false);
     }

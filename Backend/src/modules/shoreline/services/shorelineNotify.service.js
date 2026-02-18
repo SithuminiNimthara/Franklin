@@ -3,11 +3,20 @@ import { getTransporter, getFromAddress } from "./mailer.service.js";
 
 const COOLDOWN_MIN = Number(process.env.ALERT_EMAIL_COOLDOWN_MIN || 10);
 
-function recipientsList() {
+function envRecipientsList() {
   return String(process.env.SHORELINE_ALERT_RECIPIENTS || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function resolveRecipients(overrideRecipients) {
+  const override = Array.isArray(overrideRecipients)
+    ? overrideRecipients.map((s) => String(s).trim()).filter(Boolean)
+    : [];
+
+  if (override.length > 0) return override;
+  return envRecipientsList();
 }
 
 async function canSendByCooldown(cooldownKey) {
@@ -36,7 +45,26 @@ function buildEmailHtml(alertDoc) {
     <hr/>
 
     <p><b>Boundary crossed:</b> ${String(evaln.boundaryCrossed)}</p>
-    <p><b>Nests at risk:</b> ${evaln.nestsAtRisk?.length || 0}</p>
+    <p><b>Nests at risk:</b> ${evaln.nestsAtRiskCount ?? (evaln.nestsAtRisk?.length || 0)}</p>
+
+    ${
+      (evaln.nestsAtRisk || []).length
+        ? `
+  <p><b>At-risk nests:</b></p>
+  <ul>
+    ${(evaln.nestsAtRisk || [])
+      .slice(0, 10)
+      .map(
+        (n) =>
+          `<li><b>${n.label || n.id}</b> — distance: ${Number(n.distancePct).toFixed(2)}%</li>`,
+      )
+      .join("")}
+  </ul>
+`
+        : ``
+    }
+
+
 
     <h3>Environment</h3>
     <ul>
@@ -53,17 +81,18 @@ function buildEmailHtml(alertDoc) {
   </div>`;
 }
 
-export async function sendShorelineAlertEmail(alertDoc) {
+export async function sendShorelineAlertEmail(alertDoc, { recipients } = {}) {
   const transporter = getTransporter();
-  const to = recipientsList();
+  const to = resolveRecipients(recipients);
 
   if (!transporter) {
     console.warn("Email not sent: transporter not ready");
-    return;
+    return { sent: false, reason: "no_transporter" };
   }
+
   if (to.length === 0) {
-    console.warn("Email not sent: SHORELINE_ALERT_RECIPIENTS is empty");
-    return;
+    console.warn("Email not sent: recipients empty (override + env are empty)");
+    return { sent: false, reason: "no_recipients" };
   }
 
   await transporter.sendMail({
@@ -72,12 +101,13 @@ export async function sendShorelineAlertEmail(alertDoc) {
     subject: `🚨 Shoreline HIGH RISK: ${alertDoc.message}`,
     html: buildEmailHtml(alertDoc),
   });
+
+  return { sent: true, to };
 }
 
-export async function notifyIfAllowed({ alertDoc }) {
-  const ok = await canSendByCooldown(alertDoc.cooldownKey);
+export async function notifyIfAllowed({ alertDoc, recipients } = {}) {
+  const ok = await canSendByCooldown(alertDoc?.cooldownKey);
   if (!ok) return { sent: false, reason: "cooldown" };
 
-  await sendShorelineAlertEmail(alertDoc);
-  return { sent: true };
+  return await sendShorelineAlertEmail(alertDoc, { recipients });
 }

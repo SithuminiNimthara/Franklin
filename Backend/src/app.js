@@ -14,8 +14,7 @@ import environmentRoutes from "./modules/environment/environment.routes.js";
 import hatcheryRoutes from "./modules/hatchery/hatchery.routes.js";
 import alertsRoutes from "./modules/alerts/alerts.routes.js";
 import profileRoutes from "./modules/users/profile.routes.js";
-import cameraRoutes from './modules/cameras/camera.routes.js';
-
+import cameraRoutes from "./modules/cameras/camera.routes.js";
 
 const app = express();
 
@@ -29,38 +28,54 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Range"],
-  exposedHeaders: ["Content-Length", "Content-Range"]
-}));
-app.use(express.json());
+app.use(
+  cors({
+    origin: config.frontendUrl,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Range"],
+    exposedHeaders: ["Content-Length", "Content-Range"],
+    credentials: true,
+  }),
+);
 
+app.use(express.json());
 
 // Initialize Database & Services
 const init = async () => {
   await connectDB();
-  streamingService.startAllCameras();
+  if (config.streamingEnabled) {
+    console.log("Streaming is enabled. Starting cameras...");
+    streamingService.startAllCameras();
+  } else {
+    console.log("Streaming is disabled via config.");
+  }
 };
 
 init();
 
 // Static Routes (Streaming)
-app.use('/streams', express.static(config.streamDir, {
-  setHeaders(res, filePath) {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Range, Authorization, Content-Type");
-    res.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Range");
+app.use(
+  "/streams",
+  express.static(config.streamDir, {
+    setHeaders(res, filePath) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Range, Authorization, Content-Type",
+      );
+      res.setHeader(
+        "Access-Control-Expose-Headers",
+        "Content-Length, Content-Range",
+      );
 
-    // Ensure correct MIME types for HLS
-    if (filePath.endsWith(".m3u8")) {
-      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-    } else if (filePath.endsWith(".ts")) {
-      res.setHeader("Content-Type", "video/mp2t");
-    }
-  },
-})
+      // Ensure correct MIME types for HLS
+      if (filePath.endsWith(".m3u8")) {
+        res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+      } else if (filePath.endsWith(".ts")) {
+        res.setHeader("Content-Type", "video/mp2t");
+      }
+    },
+  }),
 );
 
 // API Routes
@@ -76,6 +91,11 @@ app.use("/api/hatchery", hatcheryRoutes);
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/cameras", cameraRoutes);
+
+// Health route
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "OK", timestamp: new Date() });
+});
 
 // Root route
 app.get("/", (req, res) => {
