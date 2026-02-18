@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, FileVideo, Play, Loader, CheckCircle, RefreshCcw } from 'lucide-react';
-import { UNIFIED_MODEL_URL } from '../../shared/config';
+import { getAiUrl } from '../../shared/config';
 
 export default function SimulationUpload({ onSimulationComplete, onClear }) {
     const [file, setFile] = useState(null);
@@ -23,7 +23,7 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
         formData.append('file', file);
 
         try {
-            const response = await fetch(`${UNIFIED_MODEL_URL}/analyze`, {
+            const response = await fetch(getAiUrl('/ai/unified/analyze'), {
                 method: 'POST',
                 body: formData,
             });
@@ -37,7 +37,7 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
             }
         } catch (error) {
             console.error(error);
-            alert('Error analyzing video. Ensure the Unified Backend is running on port 8000.');
+            alert('Error analyzing video. Please ensure the AI service is available and try again.');
         } finally {
             setLoading(false);
         }
