@@ -163,7 +163,7 @@ def health():
 # UNIFIED ENDPOINTS
 # ---------------------------
 @app.post("/ai/unified/analyze")
-async def analyze_unified(file: UploadFile = File(...)):
+async def analyze_unified(request: Request, file: UploadFile = File(...)):
     unified = get_unified()
 
     vid_id = uuid.uuid4().hex
@@ -175,10 +175,13 @@ async def analyze_unified(file: UploadFile = File(...)):
 
     try:
         result = unified.process_video(path, filename)
-        if AI_SERVICE_URL:
-            result["video_url"] = f"{AI_SERVICE_URL}/content/{filename}"
-        else:
-            result["video_url"] = f"/content/{filename}"
+        
+        # Determine base URL for static content
+        base_url = AI_SERVICE_URL
+        if not base_url:
+            base_url = str(request.base_url).rstrip("/")
+            
+        result["video_url"] = f"{base_url}/content/{filename}"
         return result
     except Exception as e:
         raise HTTPException(500, str(e))

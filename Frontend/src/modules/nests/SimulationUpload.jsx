@@ -31,6 +31,12 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
             if (!response.ok) throw new Error('Analysis failed');
 
             const data = await response.json();
+
+            // Normalize video_url if it's relative
+            if (data.video_url && data.video_url.startsWith('/')) {
+                data.video_url = `${UNIFIED_MODEL_URL}${data.video_url}`;
+            }
+
             setResult(data);
             if (onSimulationComplete) {
                 onSimulationComplete(data);
