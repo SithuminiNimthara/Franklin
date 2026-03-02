@@ -20,7 +20,7 @@ const turtleHealthSchema = new mongoose.Schema({
         barnacles: Number
     },
     imageUrl: {
-        type: String // Optional: if we store the image path
+        type: String 
     },
     location: {
         lat: Number,
