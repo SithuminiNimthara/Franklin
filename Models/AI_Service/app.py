@@ -57,6 +57,7 @@ MODEL_PATHS = {
 unified_processor = None
 shoreline_model = None
 hatchery_engine = None
+disease_classifier = None
 
 
 @app.on_event("startup")
@@ -77,6 +78,35 @@ async def startup_event():
         get_hatchery()
         print("✅ Hatchery model pre-loaded")
     except Exception: pass
+
+    try:
+        get_disease()
+        print("✅ Disease model pre-loaded")
+    except Exception: pass
+
+    # Register default tanks from test videos if they exist
+    try:
+        hatchery = get_hatchery()
+        # Use absolute search path for test videos
+        base_path = r"C:\Users\USER\Desktop\Research\Franklin"
+        test_vid_dir = os.path.join(base_path, "Models", "AI_Service", "test_videos")
+        
+        print(f"📂 Checking test videos in: {test_vid_dir}")
+        for tank_id in ["tankA", "tankB", "tankC", "tankD"]:
+            vid_path = os.path.join(test_vid_dir, f"{tank_id}.mov")
+            if os.path.exists(vid_path):
+                # Verify cv2 can open it
+                test_cap = cv2.VideoCapture(vid_path)
+                if test_cap.isOpened():
+                    hatchery.register_video(tank_id, vid_path)
+                    print(f"✅ Registered tank: {tank_id} with path {vid_path}")
+                    test_cap.release()
+                else:
+                    print(f"❌ OpenCV failed to open: {vid_path}")
+            else:
+                print(f"⚠️ Missing test video: {vid_path}")
+    except Exception as e:
+         print(f"❌ Default tanks registration failed: {e}")
 
 
 # ---------------------------
@@ -130,6 +160,25 @@ def get_hatchery():
     return hatchery_engine
 
 
+def get_disease():
+    global disease_classifier
+    if disease_classifier is None:
+        try:
+            import sys
+            disease_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "Disease_Detection"))
+            if disease_dir not in sys.path:
+                sys.path.append(disease_dir)
+            from inference import DiseaseClassifier
+            model_path = os.path.join(disease_dir, "protonet_conv4_encoder.keras")
+            support_dir = os.path.join(disease_dir, "support_set")
+            disease_classifier = DiseaseClassifier(model_path, support_dir)
+            print("✅ DiseaseClassifier loaded lazily")
+        except Exception as e:
+            print(f"❌ Disease init failed: {e}")
+            raise HTTPException(503, f"Disease model load failed: {e}")
+    return disease_classifier
+
+
 def get_disease_disabled():
     # Tensorflow/Keras removed for deploy success on Render free tier
     return {
@@ -160,7 +209,7 @@ def health():
             "unified": unified_processor is not None,
             "shoreline": shoreline_model is not None,
             "hatchery": hatchery_engine is not None,
-            "disease": False,
+            "disease": disease_classifier is not None,
         },
     }
 
@@ -194,12 +243,22 @@ async def analyze_unified(request: Request, file: UploadFile = File(...)):
 
 
 # ---------------------------
-# DISEASE ENDPOINTS (DISABLED)
+# DISEASE ENDPOINTS
 # ---------------------------
 @app.post("/ai/disease/classify")
 async def classify_disease(file: UploadFile = File(...)):
-    _ = await file.read()
-    return get_disease_disabled()
+    try:
+        classifier = get_disease()
+        content = await file.read()
+        result = classifier.classify(content)
+        if "error" in result:
+             raise HTTPException(500, result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Fallback due to error: {e}")
+        return get_disease_disabled()
 
 
 # ---------------------------
@@ -334,16 +393,28 @@ def stream_hatchery(video_id: str):
     def iter_frames():
         path = hatchery.video_sources.get(video_id)
         if not path:
+            print(f"❌ No video source for {video_id}")
             return
 
+        print(f"📹 Starting stream for {video_id} from {path}")
         cap = cv2.VideoCapture(path)
+        if not cap.isOpened():
+             print(f"❌ Failed to open video file: {path}")
+             return
+
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
 
         while cap.isOpened():
             success, frame = cap.read()
             if not success:
+                # Loop back to start or try to reopen if failed
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                continue
+                success, frame = cap.read()
+                if not success:
+                    print(f"⚠️ Reopening video {video_id}...")
+                    cap.release()
+                    cap = cv2.VideoCapture(path)
+                    continue
 
             frame = hatchery.process_frame(frame, video_id, fps)
 

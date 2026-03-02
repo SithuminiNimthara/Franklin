@@ -58,6 +58,25 @@ export const getTankStats = async (req, res) => {
   }
 };
 
+// Proxy stream from AI service
+export const streamHatchery = async (req, res) => {
+  const { tankId } = req.params;
+  try {
+    const streamUrl = `${config.models.hatchery}/ai/hatchery/stream/${tankId}`;
+    const response = await axios({
+      method: "get",
+      url: streamUrl,
+      responseType: "stream",
+    });
+
+    res.setHeader("Content-Type", response.headers["content-type"]);
+    response.data.pipe(res);
+  } catch (error) {
+    console.error(`Error proxying hatchery stream for ${tankId}:`, error.message);
+    res.status(500).send("Stream error");
+  }
+};
+
 // Upload video
 export const uploadFootage = async (req, res) => {
   try {

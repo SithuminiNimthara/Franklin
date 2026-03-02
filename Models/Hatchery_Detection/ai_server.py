@@ -12,10 +12,6 @@ from collections import defaultdict, deque, Counter
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok", "service": "Hatchery AI Detection"}), 200
-
 # CONFIG
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "best.pt")

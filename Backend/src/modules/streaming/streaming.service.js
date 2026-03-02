@@ -44,13 +44,21 @@ class StreamingService {
             fs.mkdirSync(cameraDir, { recursive: true });
         }
 
-        const playlistPath = path.join(cameraDir, 'index.m3u8');
+        const playlistPath = path.join(cameraDir, 'stream.m3u8');
 
-        // FFmpeg command to convert RTSP to HLS
-        const ffmpegArgs = [
-            '-rtsp_transport', 'tcp',
+        // FFmpeg command to convert input to HLS
+        const isRtsp = rtspUrl.startsWith('rtsp://');
+        const ffmpegArgs = [];
+
+        if (isRtsp) {
+            ffmpegArgs.push('-rtsp_transport', 'tcp');
+        }
+
+        ffmpegArgs.push(
             '-i', rtspUrl,
-            '-c:v', 'copy',
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-tune', 'zerolatency',
             '-c:a', 'none',
             '-f', 'hls',
             '-hls_time', '2',
@@ -58,9 +66,10 @@ class StreamingService {
             '-hls_flags', 'delete_segments',
             '-hls_segment_filename', path.join(cameraDir, 'seg_%d.ts'),
             playlistPath
-        ];
+        );
 
-        console.log(`Starting streaming for camera ${id}...`);
+        console.log(`[Camera ${id}] Source: ${rtspUrl}`);
+        console.log(`[Camera ${id}] Executing: ${ffmpegPath} ${ffmpegArgs.join(' ')}`);
         const process = spawn(ffmpegPath, ffmpegArgs);
 
         process.stdout.on('data', (data) => {
@@ -68,7 +77,7 @@ class StreamingService {
         });
 
         process.stderr.on('data', (data) => {
-            // console.error(`[Camera ${id}] stderr: ${data}`);
+            console.error(`[Camera ${id}] stderr: ${data}`);
         });
 
         process.on('close', (code) => {
@@ -110,7 +119,7 @@ class StreamingService {
         if (!cameraProcess) return { active: false };
 
         const cameraDir = path.join(config.streamDir, id);
-        const playlistPath = path.join(cameraDir, 'index.m3u8');
+        const playlistPath = path.join(cameraDir, 'stream.m3u8');
         const exists = fs.existsSync(playlistPath);
 
         return {
