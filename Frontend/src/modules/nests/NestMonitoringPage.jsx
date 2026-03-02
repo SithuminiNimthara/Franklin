@@ -12,7 +12,7 @@ import CameraSelector from '../../shared/components/media/CameraSelector';
 import { API_BASE_URL } from '../../shared/config';
 
 const MOCK_NESTS = [
-  { nestNo: 'N001', x: 25, y: 40, locationName: 'Zone A', createdAt: '2026-01-26 10:00:00', status: 'safe' },
+  { nestNo: 'N001', x: 25, y: 50, locationName: 'Zone A', createdAt: '2026-01-26 10:00:00', status: 'safe' },
   { nestNo: 'N002', x: 45, y: 55, locationName: 'Zone B', createdAt: '2026-01-26 11:30:00', status: 'safe' },
   { nestNo: 'N003', x: 48, y: 38, locationName: 'Zone C', createdAt: '2026-01-26 14:45:00', status: 'safe' },
   { nestNo: 'N004', x: 80, y: 60, locationName: 'Zone D', createdAt: '2026-01-26 16:20:00', status: 'safe' },
