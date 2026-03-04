@@ -7,3 +7,8 @@ requests
 python-dotenv
 ultralytics
 lapx
+opencv-python
+pillow
+tensorflow
+keras
+tensorflow-cpu

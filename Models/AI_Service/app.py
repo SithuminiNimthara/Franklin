@@ -87,26 +87,29 @@ async def startup_event():
     # Register default tanks from test videos if they exist
     try:
         hatchery = get_hatchery()
-        # Use absolute search path for test videos
-        base_path = r"C:\Users\USER\Desktop\Research\Franklin"
-        test_vid_dir = os.path.join(base_path, "Models", "AI_Service", "test_videos")
-        
+
+        # ✅ Use path relative to this file (works on Render/Linux and Windows)
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        test_vid_dir = os.path.join(BASE_DIR, "test_videos")
+
         print(f"📂 Checking test videos in: {test_vid_dir}")
+
         for tank_id in ["tankA", "tankB", "tankC", "tankD"]:
             vid_path = os.path.join(test_vid_dir, f"{tank_id}.mov")
+
             if os.path.exists(vid_path):
-                # Verify cv2 can open it
                 test_cap = cv2.VideoCapture(vid_path)
                 if test_cap.isOpened():
                     hatchery.register_video(tank_id, vid_path)
                     print(f"✅ Registered tank: {tank_id} with path {vid_path}")
-                    test_cap.release()
                 else:
                     print(f"❌ OpenCV failed to open: {vid_path}")
+                test_cap.release()
             else:
                 print(f"⚠️ Missing test video: {vid_path}")
+
     except Exception as e:
-         print(f"❌ Default tanks registration failed: {e}")
+        print(f"❌ Default tanks registration failed: {e}")
 
 
 # ---------------------------
