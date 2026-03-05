@@ -3,6 +3,7 @@ import shutil
 import uuid
 import numpy as np
 import cv2
+import asyncio
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -60,51 +61,86 @@ hatchery_engine = None
 disease_classifier = None
 
 
+# ---------------------------
+# Fast root + health (helps Render port detection)
+# ---------------------------
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "Franklin AI Service"}
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "service": "Franklin AI Combined",
+        "env": {
+            "node_backend": bool(NODE_BACKEND_URL),
+            "ai_service_url": bool(AI_SERVICE_URL),
+        },
+        "models_loaded": {
+            "unified": unified_processor is not None,
+            "shoreline": shoreline_model is not None,
+            "hatchery": hatchery_engine is not None,
+            "disease": disease_classifier is not None,
+        },
+    }
+
+
+# ---------------------------
+# Startup: DO NOT BLOCK PORT BINDING (Render fix)
+# ---------------------------
 @app.on_event("startup")
 async def startup_event():
-    print("Franklin AI Service starting... Pre-loading models if available.")
-    # Attempt pre-loading (it's okay if they fail here, they'll retry lazily or report 503)
+    print("Franklin AI Service starting... warming models in background (non-blocking).")
+    asyncio.create_task(background_warmup())
+
+
+async def background_warmup():
+    """
+    Warm models AFTER the server is already listening.
+    This prevents Render's port scan timeout.
+    """
+    await asyncio.sleep(1)
+
+    # Warm models (optional)
     try:
         get_unified()
-        print("✅ Unified models pre-loaded")
-    except Exception: pass
+        print("✅ Unified ready")
+    except Exception as e:
+        print("❌ Unified warmup failed:", e)
 
     try:
         get_shoreline()
-        print("✅ Shoreline model pre-loaded")
-    except Exception: pass
+        print("✅ Shoreline ready")
+    except Exception as e:
+        print("❌ Shoreline warmup failed:", e)
 
     try:
         get_hatchery()
-        print("✅ Hatchery model pre-loaded")
-    except Exception: pass
+        print("✅ Hatchery ready")
+    except Exception as e:
+        print("❌ Hatchery warmup failed:", e)
 
     try:
         get_disease()
-        print("✅ Disease model pre-loaded")
-    except Exception: pass
+        print("✅ Disease ready")
+    except Exception as e:
+        print("❌ Disease warmup failed:", e)
 
     # Register default tanks from test videos if they exist
     try:
         hatchery = get_hatchery()
 
-        # ✅ Use path relative to this file (works on Render/Linux and Windows)
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         test_vid_dir = os.path.join(BASE_DIR, "test_videos")
-
         print(f"📂 Checking test videos in: {test_vid_dir}")
 
         for tank_id in ["tankA", "tankB", "tankC", "tankD"]:
             vid_path = os.path.join(test_vid_dir, f"{tank_id}.mov")
 
             if os.path.exists(vid_path):
-                test_cap = cv2.VideoCapture(vid_path)
-                if test_cap.isOpened():
-                    hatchery.register_video(tank_id, vid_path)
-                    print(f"✅ Registered tank: {tank_id} with path {vid_path}")
-                else:
-                    print(f"❌ OpenCV failed to open: {vid_path}")
-                test_cap.release()
+                # We don't verify cv2 here to keep it light; stream will validate
+                hatchery.register_video(tank_id, vid_path)
+                print(f"✅ Registered tank: {tank_id} with path {vid_path}")
             else:
                 print(f"⚠️ Missing test video: {vid_path}")
 
@@ -120,7 +156,6 @@ def get_unified():
     if unified_processor is None:
         try:
             from models.unified import UnifiedProcessor
-            # Append detections endpoint
             detections_url = f"{NODE_BACKEND_URL}/api/detections" if NODE_BACKEND_URL else ""
             unified_processor = UnifiedProcessor(MODELS_DIR, detections_url)
             print(f"✅ UnifiedProcessor loaded (URL: {detections_url})")
@@ -153,7 +188,6 @@ def get_hatchery():
     if hatchery_engine is None:
         try:
             from models.hatchery import HatcheryEngine
-            # Append hatchery API endpoint
             hatchery_url = f"{NODE_BACKEND_URL}/api/hatchery" if NODE_BACKEND_URL else ""
             hatchery_engine = HatcheryEngine(MODEL_PATHS["hatchery"], hatchery_url)
             print(f"✅ HatcheryEngine loaded (URL: {hatchery_url})")
@@ -171,9 +205,11 @@ def get_disease():
             disease_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "Disease_Detection"))
             if disease_dir not in sys.path:
                 sys.path.append(disease_dir)
+
             from inference import DiseaseClassifier
             model_path = os.path.join(disease_dir, "protonet_conv4_encoder.keras")
             support_dir = os.path.join(disease_dir, "support_set")
+
             disease_classifier = DiseaseClassifier(model_path, support_dir)
             print("✅ DiseaseClassifier loaded lazily")
         except Exception as e:
@@ -183,7 +219,6 @@ def get_disease():
 
 
 def get_disease_disabled():
-    # Tensorflow/Keras removed for deploy success on Render free tier
     return {
         "class": "Model Disabled",
         "confidence": 0.0,
@@ -193,27 +228,6 @@ def get_disease_disabled():
             "barnacles": 0.0
         },
         "note": "Disease detection is currently disabled in cloud production to meet resource limits."
-    }
-
-
-# ---------------------------
-# Health
-# ---------------------------
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "service": "Franklin AI Combined",
-        "env": {
-            "node_backend": bool(NODE_BACKEND_URL),
-            "ai_service_url": bool(AI_SERVICE_URL),
-        },
-        "models_loaded": {
-            "unified": unified_processor is not None,
-            "shoreline": shoreline_model is not None,
-            "hatchery": hatchery_engine is not None,
-            "disease": disease_classifier is not None,
-        },
     }
 
 
@@ -233,12 +247,8 @@ async def analyze_unified(request: Request, file: UploadFile = File(...)):
 
     try:
         result = unified.process_video(path, filename)
-        
-        # Determine base URL for static content
-        base_url = AI_SERVICE_URL
-        if not base_url:
-            base_url = str(request.base_url).rstrip("/")
-            
+
+        base_url = AI_SERVICE_URL or str(request.base_url).rstrip("/")
         result["video_url"] = f"{base_url}/content/{filename}"
         return result
     except Exception as e:
@@ -255,7 +265,7 @@ async def classify_disease(file: UploadFile = File(...)):
         content = await file.read()
         result = classifier.classify(content)
         if "error" in result:
-             raise HTTPException(500, result["error"])
+            raise HTTPException(500, result["error"])
         return result
     except HTTPException:
         raise
@@ -307,7 +317,6 @@ async def predict_video_shoreline(file: UploadFile = File(...)):
     shore = get_shoreline()
     content = await file.read()
 
-    # Save to temp
     import tempfile
     suffix = "." + file.filename.split(".")[-1] if "." in file.filename else ".mp4"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -327,7 +336,8 @@ async def predict_video_shoreline(file: UploadFile = File(...)):
         idx = 0
         while True:
             ok, frame = cap.read()
-            if not ok: break
+            if not ok:
+                break
 
             if idx % sample_every == 0:
                 try:
@@ -348,9 +358,11 @@ async def predict_video_shoreline(file: UploadFile = File(...)):
                     })
                 except Exception as e:
                     print(f"Frame {idx} prediction failed: {e}")
-                
-                if len(frames_out) >= 300: break
+
+                if len(frames_out) >= 300:
+                    break
             idx += 1
+
         cap.release()
 
         return {
@@ -365,7 +377,8 @@ async def predict_video_shoreline(file: UploadFile = File(...)):
         print(f"Video processing error: {e}")
         raise HTTPException(500, f"Video processing error: {str(e)}")
     finally:
-        if os.path.exists(tmp_path): os.remove(tmp_path)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 # ---------------------------
@@ -402,15 +415,14 @@ def stream_hatchery(video_id: str):
         print(f"📹 Starting stream for {video_id} from {path}")
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():
-             print(f"❌ Failed to open video file: {path}")
-             return
+            print(f"❌ Failed to open video file: {path}")
+            return
 
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
 
         while cap.isOpened():
             success, frame = cap.read()
             if not success:
-                # Loop back to start or try to reopen if failed
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 success, frame = cap.read()
                 if not success:
