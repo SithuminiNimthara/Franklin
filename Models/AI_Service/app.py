@@ -1,22 +1,16 @@
 import os
 import shutil
 import uuid
-import asyncio
 import numpy as np
 import cv2
+import asyncio
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
 app = FastAPI(title="Franklin AI Service (Merged)")
 
-# ---------------------------
-# CORS (FIXED)
-# ---------------------------
-# IMPORTANT:
-# - Do NOT use allow_origins=["*"] with allow_credentials=True
-# - Add your deployed frontend + local dev URL
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -44,12 +38,8 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 NODE_BACKEND_URL = os.environ.get("NODE_BACKEND_URL", "").strip()
 AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "").strip()
 
-# Optional: disable heavy disease model on cloud (prevents 502 crashes)
-# Set in Render env: DISABLE_DISEASE=1
-DISABLE_DISEASE = os.environ.get("DISABLE_DISEASE", "0").strip() == "1"
-
 # Fix Ultralytics config permission warnings
-# (Set this in Render env too: YOLO_CONFIG_DIR=/tmp/Ultralytics)
+# Set this in Render env too: YOLO_CONFIG_DIR=/tmp/Ultralytics
 os.environ.setdefault("YOLO_CONFIG_DIR", "/tmp/Ultralytics")
 
 def clean_url(url: str) -> str:
@@ -74,14 +64,9 @@ shoreline_model = None
 hatchery_engine = None
 disease_classifier = None
 
-# ---------------------------
-# Background jobs (prevents 504 timeouts for video)
-# ---------------------------
-UNIFIED_JOBS = {}  # { job_id: {"status": "...", "result": {...}} }
-
 
 # ---------------------------
-# Fast root + health (helps Render checks)
+# Fast root + health (helps Render port detection)
 # ---------------------------
 @app.get("/")
 def root():
@@ -95,7 +80,6 @@ def health():
         "env": {
             "node_backend": bool(NODE_BACKEND_URL),
             "ai_service_url": bool(AI_SERVICE_URL),
-            "disable_disease": DISABLE_DISEASE,
         },
         "models_loaded": {
             "unified": unified_processor is not None,
@@ -107,7 +91,7 @@ def health():
 
 
 # ---------------------------
-# Startup: NON-BLOCKING (Render fix)
+# Startup: DO NOT BLOCK PORT BINDING (Render fix)
 # ---------------------------
 @app.on_event("startup")
 async def startup_event():
@@ -118,11 +102,11 @@ async def startup_event():
 async def background_warmup():
     """
     Warm models AFTER the server is already listening.
-    Keeps Render happy + avoids port scan timeouts.
+    This prevents Render's port scan timeout.
     """
     await asyncio.sleep(1)
 
-    # Warm lightweight models
+    # Warm models (optional)
     try:
         get_unified()
         print("✅ Unified ready")
@@ -141,27 +125,29 @@ async def background_warmup():
     except Exception as e:
         print("❌ Hatchery warmup failed:", e)
 
-    # ❌ DO NOT warm disease on cloud (can cause OOM / 502)
-    if not DISABLE_DISEASE:
-        try:
-            get_disease()
-            print("✅ Disease ready")
-        except Exception as e:
-            print("❌ Disease warmup failed:", e)
+    try:
+        get_disease()
+        print("✅ Disease ready")
+    except Exception as e:
+        print("❌ Disease warmup failed:", e)
 
     # Register default tanks from test videos if they exist
     try:
         hatchery = get_hatchery()
+
         test_vid_dir = os.path.join(BASE_DIR, "test_videos")
         print(f"📂 Checking test videos in: {test_vid_dir}")
 
         for tank_id in ["tankA", "tankB", "tankC", "tankD"]:
             vid_path = os.path.join(test_vid_dir, f"{tank_id}.mov")
+
             if os.path.exists(vid_path):
+                # We don't verify cv2 here to keep it light; stream will validate
                 hatchery.register_video(tank_id, vid_path)
                 print(f"✅ Registered tank: {tank_id} with path {vid_path}")
             else:
                 print(f"⚠️ Missing test video: {vid_path}")
+
     except Exception as e:
         print(f"❌ Default tanks registration failed: {e}")
 
@@ -240,57 +226,44 @@ def get_disease_disabled():
     return {
         "class": "Model Disabled",
         "confidence": 0.0,
-        "probabilities": {"healthy": 0.0, "fp": 0.0, "barnacles": 0.0},
-        "note": "Disease detection is disabled in cloud to avoid timeouts/502 on low resources.",
+        "probabilities": {
+            "healthy": 0.0,
+            "fp": 0.0,
+            "barnacles": 0.0
+        },
+        "note": "Disease detection is currently disabled in cloud production to meet resource limits."
     }
 
 
 # ---------------------------
-# UNIFIED ENDPOINTS (ASYNC JOB TO AVOID 504)
+# UNIFIED ENDPOINTS
 # ---------------------------
-def _run_unified_job(job_id: str, path: str, filename: str, base_url: str):
-    try:
-        unified = get_unified()
-        result = unified.process_video(path, filename)
-        result["video_url"] = f"{base_url}/content/{filename}"
-        UNIFIED_JOBS[job_id] = {"status": "done", "result": result}
-    except Exception as e:
-        UNIFIED_JOBS[job_id] = {"status": "error", "error": str(e)}
-
-
 @app.post("/ai/unified/analyze")
-async def analyze_unified(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    job_id = uuid.uuid4().hex
-    filename = f"{job_id}.mp4"
+async def analyze_unified(request: Request, file: UploadFile = File(...)):
+    unified = get_unified()
+
+    vid_id = uuid.uuid4().hex
+    filename = f"{vid_id}.mp4"
     path = os.path.join(OUTPUT_DIR, filename)
 
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # Determine base URL for static content
-    base_url = AI_SERVICE_URL or str(request.base_url).rstrip("/")
+    try:
+        result = unified.process_video(path, filename)
 
-    UNIFIED_JOBS[job_id] = {"status": "processing"}
-    background_tasks.add_task(_run_unified_job, job_id, path, filename, base_url)
-
-    # ✅ return immediately (no timeout)
-    return {"job_id": job_id, "status": "processing"}
-
-
-@app.get("/ai/unified/status/{job_id}")
-def unified_status(job_id: str):
-    return UNIFIED_JOBS.get(job_id, {"status": "not_found"})
+        base_url = AI_SERVICE_URL or str(request.base_url).rstrip("/")
+        result["video_url"] = f"{base_url}/content/{filename}"
+        return result
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 # ---------------------------
-# DISEASE ENDPOINTS (CLOUD-SAFE)
+# DISEASE ENDPOINTS
 # ---------------------------
 @app.post("/ai/disease/classify")
 async def classify_disease(file: UploadFile = File(...)):
-    # ✅ avoid TF crash on Render
-    if DISABLE_DISEASE:
-        return get_disease_disabled()
-
     try:
         classifier = get_disease()
         content = await file.read()
@@ -376,6 +349,7 @@ async def predict_video_shoreline(file: UploadFile = File(...)):
                     pts, conf, mask_b64 = shore.predict(frame)
                     risk, notes = shoreline_compute_risk(pts, h)
                     t = idx / fps
+
                     frames_out.append({
                         "t": float(t),
                         "shoreline_points": pts,
@@ -395,7 +369,12 @@ async def predict_video_shoreline(file: UploadFile = File(...)):
 
         cap.release()
 
-        return {"mode": "video", "fps": float(fps), "total_frames": int(total_frames), "frames": frames_out}
+        return {
+            "mode": "video",
+            "fps": float(fps),
+            "total_frames": int(total_frames),
+            "frames": frames_out
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -469,13 +448,19 @@ def stream_hatchery(video_id: str):
 
         cap.release()
 
-    return StreamingResponse(iter_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+    return StreamingResponse(
+        iter_frames(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
 
 
 @app.get("/ai/hatchery/data/{video_id}")
 def data_hatchery(video_id: str):
     hatchery = get_hatchery()
-    return hatchery.states.get(video_id, {"status": "Offline", "health": "Unknown", "species": "Unknown"})
+    return hatchery.states.get(
+        video_id,
+        {"status": "Offline", "health": "Unknown", "species": "Unknown"}
+    )
 
 
 # ---------------------------
