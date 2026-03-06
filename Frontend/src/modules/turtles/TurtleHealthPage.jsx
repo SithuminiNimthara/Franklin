@@ -58,6 +58,7 @@ export default function TurtleHealthPage() {
   const canvasRef = useRef(null);
   const [showCamera, setShowCamera] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [confirmLocation, setConfirmLocation] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -125,14 +126,22 @@ export default function TurtleHealthPage() {
     setSelectedImage(null);
     setPreviewUrl(null);
     setAnalysisResult(null);
+    setConfirmLocation(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const analyzeImage = async () => {
     if (!selectedImage) return;
 
-    // Optional: Validate location
-    // if (!location) { alert("Please pin point the location first."); return; }
+    if (!confirmLocation) {
+      alert("Please tick the checkbox to confirm your location before identifying the health status.");
+      return;
+    }
+
+    if (!location) {
+      alert("Location coordinate tracking failed. Please allow location permissions or click on the map to pinpoint.");
+      return;
+    }
 
     setIsAnalyzing(true);
     setAnalysisResult(null);
@@ -243,15 +252,34 @@ export default function TurtleHealthPage() {
               )}
 
               {/* Location Picker */}
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <MapPin className="h-4 w-4 text-gray-500" />
                   <p className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest">Location Pinpoint</p>
                 </div>
-                <div className="h-64 rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-sm relative z-0">
+                <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-sm relative z-0">
                   <GoogleMapPicker onLocationSelect={setLocation} />
                 </div>
                 {location && <p className="text-[10px] text-gray-400 text-right">Selected: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</p>}
+
+                {/* Location Confirmation Toggle */}
+                <div className={`flex items-center space-x-3 p-3 rounded-xl border transition-all ${confirmLocation ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-900/40' : 'bg-gray-50 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700'}`}>
+                  <input
+                    type="checkbox"
+                    id="location-confirm"
+                    checked={confirmLocation}
+                    onChange={(e) => setConfirmLocation(e.target.checked)}
+                    className="h-5 w-5 text-green-600 rounded border-gray-300 focus:ring-green-500 cursor-pointer"
+                  />
+                  <div className="flex flex-col">
+                    <label htmlFor="location-confirm" className="text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer">
+                      Confirm Location Recording
+                    </label>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer" onClick={() => setConfirmLocation(!confirmLocation)}>
+                      I confirm that the map pinpoints the exact location of this turtle for the database.
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {analysisResult && (
