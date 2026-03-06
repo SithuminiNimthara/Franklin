@@ -3,7 +3,7 @@ import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin, Camera, H
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
-import { API_BASE_URL, DISEASE_MODEL_URL } from '../../shared/config';
+import { API_BASE_URL, getAiUrl } from '../../shared/config';
 
 function HealthStats({ refreshTrigger }) {
   const [stats, setStats] = useState(null);
@@ -227,7 +227,7 @@ export default function TurtleHealthPage() {
     formData.append('file', selectedImage);
 
     try {
-      const response = await fetch(`${DISEASE_MODEL_URL}/ai/disease/classify`, {
+      const response = await fetch(getAiUrl('/ai/disease/classify'), {
         method: 'POST',
         body: formData,
       });
