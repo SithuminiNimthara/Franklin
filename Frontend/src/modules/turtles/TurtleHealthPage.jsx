@@ -5,7 +5,7 @@ import Button from '../../shared/components/ui/Button';
 import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
 import { API_BASE_URL, DISEASE_MODEL_URL } from '../../shared/config';
 
-function HealthStats() {
+function HealthStats({ refreshTrigger }) {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
@@ -13,7 +13,7 @@ function HealthStats() {
       .then(res => res.json())
       .then(data => setStats(data))
       .catch(err => console.error("Failed to fetch stats", err));
-  }, []);
+  }, [refreshTrigger]);
 
   if (!stats) return <p className="text-gray-500 animate-pulse">Loading analytics...</p>;
 
@@ -53,6 +53,7 @@ export default function TurtleHealthPage() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [location, setLocation] = useState(null);
   const fileInputRef = useRef(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -104,6 +105,7 @@ export default function TurtleHealthPage() {
           notes: 'Auto-saved from diagnostics'
         })
       });
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error analyzing image:', error);
       alert('Failed to analyze image. Ensure backend is running.');
@@ -206,7 +208,7 @@ export default function TurtleHealthPage() {
 
         <div className="space-y-6">
           <DashboardCard title="Biological Metrics" icon={Activity} iconColor="text-teal-600" iconBg="bg-teal-100 dark:bg-teal-900/30">
-            <HealthStats />
+            <HealthStats refreshTrigger={refreshTrigger} />
           </DashboardCard>
 
           <DashboardCard title="Care Protocols" icon={AlertCircle} iconColor="text-purple-600" iconBg="bg-purple-100 dark:bg-purple-900/30">
