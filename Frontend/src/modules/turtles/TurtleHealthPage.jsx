@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin, Camera } from 'lucide-react';
+import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin, Camera, History } from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
@@ -43,6 +43,83 @@ function HealthStats({ refreshTrigger }) {
         <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-1">{stats.stats.barnacles.percentage}% of total</p>
       </div>
     </div>
+  );
+}
+
+function RecentDiagnosesTracker({ refreshTrigger }) {
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/health/recent`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setHistory(data);
+      })
+      .catch(err => console.error("Failed to fetch history", err));
+  }, [refreshTrigger]);
+
+  return (
+    <DashboardCard title="Recent Diagnoses History" icon={History} iconColor="text-indigo-600" iconBg="bg-indigo-100 dark:bg-indigo-900/30">
+      {history.length === 0 ? (
+        <p className="text-gray-500 text-sm text-center py-6">No recent diagnostic records found.</p>
+      ) : (
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-slate-800 text-gray-400 dark:text-gray-500 text-[10px] uppercase tracking-wider">
+                <th className="pb-3 font-bold">Health Status</th>
+                <th className="pb-3 font-bold pl-4">Confidence</th>
+                <th className="pb-3 font-bold pl-4">Date & Time</th>
+                <th className="pb-3 font-bold pl-4">Photo</th>
+                <th className="pb-3 font-bold pl-4">GPS Location</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
+              {history.map((record) => (
+                <tr key={record._id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                  <td className="py-3">
+                    <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${record.diagnosisClass === 'healthy' ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' :
+                      record.diagnosisClass === 'fp' ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' :
+                        'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                      }`}>
+                      {record.diagnosisClass === 'healthy' ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                      <span>{record.diagnosisClass === 'fp' ? 'Fibropapillomatosis' : record.diagnosisClass}</span>
+                    </span>
+                  </td>
+                  <td className="py-3 pl-4">
+                    <span className="font-bold text-gray-900 dark:text-white">
+                      {(record.confidence * 100).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="py-3 pl-4 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                    {new Date(record.timestamp).toLocaleString('en-LK')}
+                  </td>
+                  <td className="py-3 pl-4">
+                    {record.imageUrl ? (
+                      <a href={record.imageUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded w-fit text-[10px] font-bold">
+                        <Image className="h-3 w-3 mr-1" /> View Image
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 italic font-medium">No Image</span>
+                    )}
+                  </td>
+                  <td className="py-3 pl-4">
+                    {record.location ? (
+                      <div className="flex items-center text-[10px] text-gray-500 font-medium font-mono bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md inline-flex">
+                        <MapPin className="h-3 w-3 mr-1 opacity-70" />
+                        {record.location.lat.toFixed(5)}, {record.location.lng.toFixed(5)}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 italic">Unknown Location</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </DashboardCard>
   );
 }
 
@@ -159,16 +236,17 @@ export default function TurtleHealthPage() {
       const data = await response.json();
       setAnalysisResult(data);
 
+      const saveFormData = new FormData();
+      saveFormData.append('image', selectedImage);
+      saveFormData.append('diagnosisClass', data.class);
+      saveFormData.append('confidence', data.confidence);
+      saveFormData.append('probabilities', JSON.stringify(data.probabilities));
+      saveFormData.append('location', JSON.stringify(location));
+      saveFormData.append('notes', 'Auto-saved from diagnostics');
+
       await fetch(`${API_BASE_URL}/api/health/save`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          diagnosisClass: data.class,
-          confidence: data.confidence,
-          probabilities: data.probabilities,
-          location: location,
-          notes: 'Auto-saved from diagnostics'
-        })
+        body: saveFormData
       });
       setRefreshTrigger(prev => prev + 1);
     } catch (error) {
@@ -338,6 +416,10 @@ export default function TurtleHealthPage() {
             </div>
           </DashboardCard>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <RecentDiagnosesTracker refreshTrigger={refreshTrigger} />
       </div>
     </div>
   );
