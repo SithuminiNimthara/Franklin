@@ -1,60 +1,11 @@
 import { TurtleHealth } from './health.model.js';
-import { google } from 'googleapis';
-import stream from 'stream';
-import path from 'path';
 
-// Google Drive Auth Configuration
-const FOLDER_ID = '1GozwiRc0y_gMstAtSxI8MV_7ZwOq8b76';
-const KEYFILEPATH = path.join(process.cwd(), 'google-credentials.json');
-
-const auth = new google.auth.GoogleAuth({
-    keyFile: KEYFILEPATH,
-    scopes: ['https://www.googleapis.com/auth/drive']
-});
-
-const uploadImageToDrive = async (fileObject) => {
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(fileObject.buffer);
-
-    const driveService = google.drive({ version: 'v3', auth });
-
-    const { data } = await driveService.files.create({
-        media: {
-            mimeType: fileObject.mimetype,
-            body: bufferStream,
-        },
-        requestBody: {
-            name: `Franklin-Diagnosis_${Date.now()}.jpg`,
-            parents: [FOLDER_ID],
-        },
-        fields: 'id, webViewLink, webContentLink',
-    });
-
-    try {
-        await driveService.permissions.create({
-            fileId: data.id,
-            requestBody: {
-                role: 'reader',
-                type: 'anyone',
-            },
-        });
-    } catch (permError) {
-        console.warn("Could not make file public (likely an organization restriction), but it was saved successfully.", permError.message);
-    }
-
-    return data.webViewLink;
-};
 export const saveHealthDiagnosis = async (req, res) => {
     try {
         let { diagnosisClass, confidence, probabilities, imageUrl, notes, location } = req.body;
 
         if (typeof probabilities === 'string') probabilities = JSON.parse(probabilities);
         if (typeof location === 'string') location = JSON.parse(location);
-
-        if (req.file) {
-            imageUrl = await uploadImageToDrive(req.file);
-        }
-
 
         const newDiagnosis = new TurtleHealth({
             diagnosisClass,

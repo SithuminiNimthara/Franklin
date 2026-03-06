@@ -236,17 +236,18 @@ export default function TurtleHealthPage() {
       const data = await response.json();
       setAnalysisResult(data);
 
-      const saveFormData = new FormData();
-      saveFormData.append('image', selectedImage);
-      saveFormData.append('diagnosisClass', data.class);
-      saveFormData.append('confidence', data.confidence);
-      saveFormData.append('probabilities', JSON.stringify(data.probabilities));
-      saveFormData.append('location', JSON.stringify(location));
-      saveFormData.append('notes', 'Auto-saved from diagnostics');
-
       await fetch(`${API_BASE_URL}/api/health/save`, {
         method: 'POST',
-        body: saveFormData
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          diagnosisClass: data.class,
+          confidence: data.confidence,
+          probabilities: data.probabilities,
+          location: location,
+          notes: 'Auto-saved from diagnostics'
+        })
       });
       setRefreshTrigger(prev => prev + 1);
     } catch (error) {
