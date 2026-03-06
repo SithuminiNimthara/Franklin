@@ -37,7 +37,7 @@ const DashboardLayout = () => {
       try {
         const token = await getToken();
         if (token) {
-          const response = await axios.get(`${API_BASE_URL}/profile/me/settings`, {
+          const response = await axios.get(`${API_BASE_URL}/api/profile/me/settings`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           const profileTheme = response.data?.preferences?.theme;

@@ -9,9 +9,10 @@ import Button from '../../shared/components/ui/Button';
 import SimulationUpload from './SimulationUpload';
 import { useUser } from '@clerk/clerk-react';
 import CameraSelector from '../../shared/components/media/CameraSelector';
+import { API_BASE_URL } from '../../shared/config';
 
 const MOCK_NESTS = [
-  { nestNo: 'N001', x: 25, y: 40, locationName: 'Zone A', createdAt: '2026-01-26 10:00:00', status: 'safe' },
+  { nestNo: 'N001', x: 25, y: 50, locationName: 'Zone A', createdAt: '2026-01-26 10:00:00', status: 'safe' },
   { nestNo: 'N002', x: 45, y: 55, locationName: 'Zone B', createdAt: '2026-01-26 11:30:00', status: 'safe' },
   { nestNo: 'N003', x: 48, y: 38, locationName: 'Zone C', createdAt: '2026-01-26 14:45:00', status: 'safe' },
   { nestNo: 'N004', x: 80, y: 60, locationName: 'Zone D', createdAt: '2026-01-26 16:20:00', status: 'safe' },
@@ -47,11 +48,11 @@ export default function NestMonitoringPage() {
   const RADIUS_THRESHOLD = 15;
 
   const streamUrl = activeCamera
-    ? `${import.meta.env.VITE_API_BASE_URL}/streams/${activeCamera._id}/stream.m3u8`
+    ? `${API_BASE_URL}/streams/${activeCamera._id}/stream.m3u8`
     : null;
 
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_API_BASE_URL);
+    const socket = io(API_BASE_URL);
     socket.on('danger_alert', (data) => console.log('Central Server Alert:', data));
     return () => socket.disconnect();
   }, []);
@@ -72,7 +73,7 @@ export default function NestMonitoringPage() {
   }, []);
 
   const fetchHistory = () => {
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/detections`)
+    fetch(`${API_BASE_URL}/api/detections`)
       .then(res => res.json())
       .then(res => { if (res.success) setDetectionHistory(res.data); })
       .catch(err => console.error("Failed to load history", err));
@@ -102,7 +103,7 @@ export default function NestMonitoringPage() {
     playSiren();
 
     try {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/alerts/email`, {
+      await fetch(`${API_BASE_URL}/api/alerts/email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

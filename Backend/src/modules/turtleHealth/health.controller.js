@@ -2,7 +2,10 @@ import { TurtleHealth } from './health.model.js';
 
 export const saveHealthDiagnosis = async (req, res) => {
     try {
-        const { diagnosisClass, confidence, probabilities, imageUrl, notes, location } = req.body;
+        let { diagnosisClass, confidence, probabilities, imageUrl, notes, location } = req.body;
+
+        if (typeof probabilities === 'string') probabilities = JSON.parse(probabilities);
+        if (typeof location === 'string') location = JSON.parse(location);
 
         const newDiagnosis = new TurtleHealth({
             diagnosisClass,

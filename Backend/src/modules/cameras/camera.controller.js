@@ -1,10 +1,17 @@
+import path from 'path';
 import { Camera } from './camera.model.js';
 import { streamingService } from '../streaming/streaming.service.js';
 
 const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 
 const generateRtspUrl = (ip) => {
-    return `rtsp://admin:EDSNNP@${ip.trim()}:554/Streaming/Channels/101`;
+    const trimmed = ip.trim();
+    if (trimmed === '127.0.0.1' || trimmed.toLowerCase() === 'localhost') {
+        // Use a test video path for local testing since there's likely no RTSP camera at 127.0.0.1
+        const projectRoot = process.cwd();
+        return path.join(projectRoot, 'Models', 'AI_Service', 'test_videos', 'tankA.mov');
+    }
+    return `rtsp://admin:EDSNNP@${trimmed}:554/Streaming/Channels/101`;
 };
 
 export const cameraController = {

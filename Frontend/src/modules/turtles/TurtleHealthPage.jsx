@@ -1,19 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin } from 'lucide-react';
+import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin, Camera, History } from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
 import { API_BASE_URL, DISEASE_MODEL_URL } from '../../shared/config';
 
-function HealthStats() {
+function HealthStats({ refreshTrigger }) {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/health/stats`)
+    fetch(`${API_BASE_URL}/api/health/stats`)
       .then(res => res.json())
       .then(data => setStats(data))
       .catch(err => console.error("Failed to fetch stats", err));
-  }, []);
+  }, [refreshTrigger]);
 
   if (!stats) return <p className="text-gray-500 animate-pulse">Loading analytics...</p>;
 
@@ -46,13 +46,148 @@ function HealthStats() {
   );
 }
 
+function RecentDiagnosesTracker({ refreshTrigger }) {
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/health/recent`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setHistory(data);
+      })
+      .catch(err => console.error("Failed to fetch history", err));
+  }, [refreshTrigger]);
+
+  return (
+    <DashboardCard title="Recent Diagnoses History" icon={History} iconColor="text-indigo-600" iconBg="bg-indigo-100 dark:bg-indigo-900/30">
+      {history.length === 0 ? (
+        <p className="text-gray-500 text-sm text-center py-6">No recent diagnostic records found.</p>
+      ) : (
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-slate-800 text-gray-400 dark:text-gray-500 text-[10px] uppercase tracking-wider">
+                <th className="pb-3 font-bold">Health Status</th>
+                <th className="pb-3 font-bold pl-4">Confidence</th>
+                <th className="pb-3 font-bold pl-4">Date & Time</th>
+                <th className="pb-3 font-bold pl-4">Photo</th>
+                <th className="pb-3 font-bold pl-4">GPS Location</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
+              {history.map((record) => (
+                <tr key={record._id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                  <td className="py-3">
+                    <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${record.diagnosisClass === 'healthy' ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' :
+                      record.diagnosisClass === 'fp' ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' :
+                        'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                      }`}>
+                      {record.diagnosisClass === 'healthy' ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                      <span>{record.diagnosisClass === 'fp' ? 'Fibropapillomatosis' : record.diagnosisClass}</span>
+                    </span>
+                  </td>
+                  <td className="py-3 pl-4">
+                    <span className="font-bold text-gray-900 dark:text-white">
+                      {(record.confidence * 100).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="py-3 pl-4 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                    {new Date(record.timestamp).toLocaleString('en-LK')}
+                  </td>
+                  <td className="py-3 pl-4">
+                    {record.imageUrl ? (
+                      <a href={record.imageUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded w-fit text-[10px] font-bold">
+                        <Image className="h-3 w-3 mr-1" /> View Image
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 italic font-medium">No Image</span>
+                    )}
+                  </td>
+                  <td className="py-3 pl-4">
+                    {record.location ? (
+                      <div className="flex items-center text-[10px] text-gray-500 font-medium font-mono bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md inline-flex">
+                        <MapPin className="h-3 w-3 mr-1 opacity-70" />
+                        {record.location.lat.toFixed(5)}, {record.location.lng.toFixed(5)}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 italic">Unknown Location</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </DashboardCard>
+  );
+}
+
 export default function TurtleHealthPage() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [location, setLocation] = useState(null);
+  const locationData = useRef(null); // Place to hold location data for next steps
   const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [confirmLocation, setConfirmLocation] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup camera on unmount
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const startCamera = async () => {
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera", err);
+      alert("Could not access camera. Please ensure permissions are granted.");
+      setShowCamera(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
+          setSelectedImage(file);
+          setPreviewUrl(URL.createObjectURL(file));
+          setAnalysisResult(null);
+          stopCamera();
+        }
+      }, 'image/jpeg');
+    }
+  };
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -68,14 +203,22 @@ export default function TurtleHealthPage() {
     setSelectedImage(null);
     setPreviewUrl(null);
     setAnalysisResult(null);
+    setConfirmLocation(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const analyzeImage = async () => {
     if (!selectedImage) return;
 
-    // Optional: Validate location
-    // if (!location) { alert("Please pin point the location first."); return; }
+    if (!confirmLocation) {
+      alert("Please tick the checkbox to confirm your location before identifying the health status.");
+      return;
+    }
+
+    if (!location) {
+      alert("Location coordinate tracking failed. Please allow location permissions or click on the map to pinpoint.");
+      return;
+    }
 
     setIsAnalyzing(true);
     setAnalysisResult(null);
@@ -84,7 +227,7 @@ export default function TurtleHealthPage() {
     formData.append('file', selectedImage);
 
     try {
-      const response = await fetch(`${DISEASE_MODEL_URL}/classify`, {
+      const response = await fetch(`${DISEASE_MODEL_URL}/ai/disease/classify`, {
         method: 'POST',
         body: formData,
       });
@@ -93,9 +236,11 @@ export default function TurtleHealthPage() {
       const data = await response.json();
       setAnalysisResult(data);
 
-      await fetch(`${API_BASE_URL}/health/save`, {
+      await fetch(`${API_BASE_URL}/api/health/save`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           diagnosisClass: data.class,
           confidence: data.confidence,
@@ -104,6 +249,7 @@ export default function TurtleHealthPage() {
           notes: 'Auto-saved from diagnostics'
         })
       });
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error analyzing image:', error);
       alert('Failed to analyze image. Ensure backend is running.');
@@ -124,16 +270,42 @@ export default function TurtleHealthPage() {
           <DashboardCard title="Diagnostic Center" icon={Upload} iconColor="text-blue-600" iconBg="bg-blue-100 dark:bg-blue-900/30">
             <div className="space-y-6">
               <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
+              <canvas ref={canvasRef} className="hidden"></canvas>
 
               {!previewUrl ? (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-12 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer bg-gray-50 dark:bg-slate-900/50 group"
-                >
-                  <Image className="h-16 w-16 mx-auto text-gray-300 dark:text-gray-700 mb-4 group-hover:text-blue-500 transition-colors" />
-                  <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-1 leading-none uppercase tracking-widest">Identify Turtle Health</p>
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500">Drop image or click to choose from system</p>
-                </div>
+                showCamera ? (
+                  <div className="relative rounded-2xl overflow-hidden shadow-xl bg-black group border border-slate-800">
+                    <video ref={videoRef} autoPlay playsInline className="w-full h-72 object-cover" />
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4 px-4">
+                      <Button onClick={stopCamera} className="bg-red-500 hover:bg-red-600 text-white shadow-lg flex-1">
+                        Cancel
+                      </Button>
+                      <Button onClick={capturePhoto} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex-1 font-bold">
+                        <Camera className="h-4 w-4 mr-2 inline" /> Capture
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div
+                      onClick={startCamera}
+                      className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-8 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer bg-gray-50 dark:bg-slate-900/50 group flex flex-col items-center justify-center"
+                    >
+                      <Camera className="h-10 w-10 text-gray-300 dark:text-gray-700 mb-3 group-hover:text-blue-500 transition-colors" />
+                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 leading-none uppercase tracking-widest text-wrap">Take Photo</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500">Use device camera</p>
+                    </div>
+
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-8 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer bg-gray-50 dark:bg-slate-900/50 group flex flex-col items-center justify-center"
+                    >
+                      <Image className="h-10 w-10 text-gray-300 dark:text-gray-700 mb-3 group-hover:text-blue-500 transition-colors" />
+                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 leading-none uppercase tracking-widest text-wrap">Upload File</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500">Choose from gallery</p>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="relative rounded-2xl overflow-hidden shadow-xl bg-gray-900 border border-gray-100 dark:border-slate-800 group">
                   <img src={previewUrl} alt="Preview" className="w-full h-72 object-contain" />
@@ -159,15 +331,34 @@ export default function TurtleHealthPage() {
               )}
 
               {/* Location Picker */}
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <MapPin className="h-4 w-4 text-gray-500" />
                   <p className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest">Location Pinpoint</p>
                 </div>
-                <div className="h-64 rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-sm relative z-0">
+                <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-sm relative z-0">
                   <GoogleMapPicker onLocationSelect={setLocation} />
                 </div>
                 {location && <p className="text-[10px] text-gray-400 text-right">Selected: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</p>}
+
+                {/* Location Confirmation Toggle */}
+                <div className={`flex items-center space-x-3 p-3 rounded-xl border transition-all ${confirmLocation ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-900/40' : 'bg-gray-50 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700'}`}>
+                  <input
+                    type="checkbox"
+                    id="location-confirm"
+                    checked={confirmLocation}
+                    onChange={(e) => setConfirmLocation(e.target.checked)}
+                    className="h-5 w-5 text-green-600 rounded border-gray-300 focus:ring-green-500 cursor-pointer"
+                  />
+                  <div className="flex flex-col">
+                    <label htmlFor="location-confirm" className="text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer">
+                      Confirm Location Recording
+                    </label>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer" onClick={() => setConfirmLocation(!confirmLocation)}>
+                      I confirm that the map pinpoints the exact location of this turtle for the database.
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {analysisResult && (
@@ -206,7 +397,7 @@ export default function TurtleHealthPage() {
 
         <div className="space-y-6">
           <DashboardCard title="Biological Metrics" icon={Activity} iconColor="text-teal-600" iconBg="bg-teal-100 dark:bg-teal-900/30">
-            <HealthStats />
+            <HealthStats refreshTrigger={refreshTrigger} />
           </DashboardCard>
 
           <DashboardCard title="Care Protocols" icon={AlertCircle} iconColor="text-purple-600" iconBg="bg-purple-100 dark:bg-purple-900/30">
@@ -226,6 +417,10 @@ export default function TurtleHealthPage() {
             </div>
           </DashboardCard>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <RecentDiagnosesTracker refreshTrigger={refreshTrigger} />
       </div>
     </div>
   );

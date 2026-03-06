@@ -23,7 +23,7 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
         formData.append('file', file);
 
         try {
-            const response = await fetch(`${UNIFIED_MODEL_URL}/analyze`, {
+            const response = await fetch(`${UNIFIED_MODEL_URL}/ai/unified/analyze`, {
                 method: 'POST',
                 body: formData,
             });
@@ -31,6 +31,12 @@ export default function SimulationUpload({ onSimulationComplete, onClear }) {
             if (!response.ok) throw new Error('Analysis failed');
 
             const data = await response.json();
+
+            // Normalize video_url if it's relative
+            if (data.video_url && data.video_url.startsWith('/')) {
+                data.video_url = `${UNIFIED_MODEL_URL}${data.video_url}`;
+            }
+
             setResult(data);
             if (onSimulationComplete) {
                 onSimulationComplete(data);

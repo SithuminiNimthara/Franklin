@@ -12,7 +12,7 @@ export default function AlertsPanel({ isOpen, onClose }) {
     const fetchAlerts = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/hatchery/alerts`);
+        const res = await fetch(`${API_BASE_URL}/api/hatchery/alerts`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setAlerts(data.map((a) => ({
@@ -44,7 +44,7 @@ export default function AlertsPanel({ isOpen, onClose }) {
   const handleAcknowledge = async (id) => {
     setResolvingId(id);
     try {
-      const response = await fetch(`${API_BASE_URL}/hatchery/alerts/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/hatchery/alerts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "acknowledged", resolvedBy: "System Operator" }),
@@ -57,7 +57,7 @@ export default function AlertsPanel({ isOpen, onClose }) {
     const notes = prompt("Incident Resolution Notes:");
     setResolvingId(id);
     try {
-      const response = await fetch(`${API_BASE_URL}/hatchery/alerts/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/hatchery/alerts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "resolved", notes: notes || "Resolved mechanically", resolvedBy: "System Operator" }),

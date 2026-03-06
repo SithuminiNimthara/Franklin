@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { AlertCircle, ShieldCheck, Maximize2, X } from "lucide-react";
+<<<<<<< HEAD
 import { HATCHERY_MODEL_URL } from "../../config";
+=======
+import { getStreamUrl, getHatcheryDataUrl } from "../../config";
+>>>>>>> origin/main
 
 export default function TankVideoCard({ tankId, tankLabel }) {
   const [isZoomed, setIsZoomed] = useState(false);
@@ -12,7 +16,11 @@ export default function TankVideoCard({ tankId, tankLabel }) {
 
   useEffect(() => {
     const interval = setInterval(() => {
+<<<<<<< HEAD
       fetch(`${HATCHERY_MODEL_URL}/data/${tankId}`)
+=======
+      fetch(getHatcheryDataUrl(tankId))
+>>>>>>> origin/main
         .then((res) => res.json())
         .then(setData)
         .catch(() =>
@@ -37,7 +45,11 @@ export default function TankVideoCard({ tankId, tankLabel }) {
           onClick={() => setIsZoomed(true)}
         >
           <img
+<<<<<<< HEAD
             src={`${HATCHERY_MODEL_URL}/stream/${tankId}`}
+=======
+            src={getStreamUrl(tankId)}
+>>>>>>> origin/main
             className="w-full h-full object-cover"
             alt="Live Stream"
           />
@@ -86,7 +98,11 @@ export default function TankVideoCard({ tankId, tankLabel }) {
             <X />
           </button>
           <img
+<<<<<<< HEAD
             src={`${HATCHERY_MODEL_URL}/stream/${tankId}`}
+=======
+            src={getStreamUrl(tankId)}
+>>>>>>> origin/main
             className="max-w-5xl w-full object-contain"
             alt="Fullscreen"
           />

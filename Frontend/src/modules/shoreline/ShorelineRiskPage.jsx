@@ -6,7 +6,6 @@ import ShorelineBeachMap from "../../shared/components/maps/ShorelineBeachMap.js
 import ShorelineVideoPlayer from "../shoreline/ShorelineVideoPlayer.jsx";
 import ShorelineAlertsPanel from "../shoreline/ShorelineAlertsPanel.jsx";
 import EnvironmentManualForm from "../shoreline/EnvironmentManualForm.jsx";
-
 import {
   getBoundary,
   getNests,
@@ -62,7 +61,6 @@ export default function ShorelineRiskPage() {
         getNests(),
         getAlerts(),
       ]);
-
       setBoundary(b?.points || []);
       setNests(
         (n || []).map((item) => ({
@@ -109,7 +107,6 @@ export default function ShorelineRiskPage() {
           Array.isArray(data?.frames) &&
           data.frames.length > 2 &&
           Number(data.frames[1]?.t) > 5;
-
         const series = (data?.frames || [])
           .map((f) => {
             const imgW = f.image?.w || 1920;

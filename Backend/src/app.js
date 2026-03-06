@@ -53,7 +53,10 @@ const init = async () => {
 
 init();
 
+import path from "path";
+
 // Static Routes (Streaming)
+app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 app.use(
   "/streams",
   express.static(config.streamDir, {

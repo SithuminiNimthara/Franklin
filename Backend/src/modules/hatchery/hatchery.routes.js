@@ -57,6 +57,9 @@ router.get(
   hatcheryController.generateHatcheryReport,
 );
 
+router.get("/stream/:tankId", hatcheryController.streamHatchery);
+router.get("/data/:tankId", hatcheryController.getTankStats);
+
 router.post("/alerts/new", hatcheryController.saveAlert);
 
 router.get("/alerts", hatcheryController.getAlerts);

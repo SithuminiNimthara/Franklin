@@ -1,12 +1,12 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
-ultralytics
-opencv-python-headless
 numpy
 requests
-tensorflow
-keras
-pillow
 python-dotenv
-flask  # Only if needed for internal logic, but we'll try to remove it
+pillow
+opencv-python-headless
+ultralytics
+lapx
+tensorflow-cpu
+keras

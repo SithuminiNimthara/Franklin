@@ -8,7 +8,7 @@ from ultralytics import YOLO
 from collections import defaultdict, deque, Counter
 
 PIXELS_PER_CM = 25.0
-CONFIRMATION_WINDOW = 45
+CONFIRMATION_WINDOW = 10
 SURFACE_FLOAT_THRESHOLD = 0.30
 LATERAL_TILT_ANGLE_MIN = 0.7
 LATERAL_TILT_ANGLE_MAX = 1.3
@@ -104,6 +104,7 @@ class HatcheryEngine:
 
     def process_frame(self, frame, vid, fps):
         if vid not in self.states: self.init_state(vid)
+<<<<<<< HEAD
         results = self.model.track(frame, persist=True, conf=0.5, verbose=False)
         if not results: return frame
         
@@ -136,6 +137,50 @@ class HatcheryEngine:
             cv2.putText(frame, f"{species}-{status}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
             
         self.update_logic(vid, f_species, f_status, f_health)
+=======
+        
+        f_species, f_status, f_health = set(), [], []
+        h, w = frame.shape[:2]
+
+        results = None
+        try:
+            results = self.model.track(frame, persist=True, conf=0.5, verbose=False)
+        except Exception as e:
+            print(f"Tracking error for {vid}: {e}")
+
+        if results and results[0].boxes is not None:
+            r = results[0]
+            boxes = r.boxes.xywh.cpu()
+            classes = r.boxes.cls.int().cpu().tolist()
+            ids = r.boxes.id.int().cpu().tolist() if r.boxes.id is not None else range(len(boxes))
+            
+            for i, (box, cls) in enumerate(zip(boxes, classes)):
+                x, y, bw, bh = box
+                species = self.model.names[int(cls)]
+                f_species.add(species)
+                tid = int(ids[i])
+                
+                history = self.states[vid]["history"][tid]
+                history.append((float(x), float(y)))
+                
+                if tid not in self.behavior_analyzers[vid]: self.behavior_analyzers[vid][tid] = EnhancedBehaviorAnalyzer()
+                status, color, health, reasons = self.behavior_analyzers[vid][tid].analyze_behavior(float(bw), float(bh), float(x), float(y), history, fps, h, w)
+                f_status.append(status)
+                f_health.append(health)
+                
+                x1, y1 = int(x - bw/2), int(y - bh/2)
+                cv2.rectangle(frame, (x1, y1), (int(x+bw/2), int(y+bh/2)), color, 2)
+                cv2.putText(frame, f"{species}-{status}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+        
+        self.update_logic(vid, f_species, f_status, f_health)
+        
+        # Periodic debug log
+        if not hasattr(self, '_frame_count'): self._frame_count = {}
+        self._frame_count[vid] = self._frame_count.get(vid, 0) + 1
+        if self._frame_count[vid] % 100 == 0:
+            print(f"⚙️ Processed {self._frame_count[vid]} frames for {vid}. Current health: {self.states[vid]['health']}")
+            
+>>>>>>> origin/main
         return frame
 
     def update_logic(self, vid, f_species, f_status, f_health):
