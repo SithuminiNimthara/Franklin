@@ -4,24 +4,11 @@ import uuid
 import numpy as np
 import cv2
 import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
-
-app = FastAPI(title="Franklin AI Service (Merged)")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://franklin-frontend.onrender.com",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ---------------------------
 # Configuration
@@ -38,9 +25,11 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 NODE_BACKEND_URL = os.environ.get("NODE_BACKEND_URL", "").strip()
 AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "").strip()
 
-# Fix Ultralytics config permission warnings
-# Set this in Render env too: YOLO_CONFIG_DIR=/tmp/Ultralytics
+# Fix Ultralytics config permission warnings (Render)
 os.environ.setdefault("YOLO_CONFIG_DIR", "/tmp/Ultralytics")
+
+# Optional: disable heavy disease model in cloud to avoid 502/OOM/timeouts
+DISABLE_DISEASE = os.environ.get("DISABLE_DISEASE", "false").lower() == "true"
 
 def clean_url(url: str) -> str:
     return url.rstrip("/") if url else ""
@@ -66,43 +55,12 @@ disease_classifier = None
 
 
 # ---------------------------
-# Fast root + health (helps Render port detection)
+# Background warmup
 # ---------------------------
-@app.get("/")
-def root():
-    return {"status": "ok", "service": "Franklin AI Service"}
-
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "service": "Franklin AI Combined",
-        "env": {
-            "node_backend": bool(NODE_BACKEND_URL),
-            "ai_service_url": bool(AI_SERVICE_URL),
-        },
-        "models_loaded": {
-            "unified": unified_processor is not None,
-            "shoreline": shoreline_model is not None,
-            "hatchery": hatchery_engine is not None,
-            "disease": disease_classifier is not None,
-        },
-    }
-
-
-# ---------------------------
-# Startup: DO NOT BLOCK PORT BINDING (Render fix)
-# ---------------------------
-@app.on_event("startup")
-async def startup_event():
-    print("Franklin AI Service starting... warming models in background (non-blocking).")
-    asyncio.create_task(background_warmup())
-
-
 async def background_warmup():
     """
     Warm models AFTER the server is already listening.
-    This prevents Render's port scan timeout.
+    This prevents Render's port scan / boot timeout.
     """
     await asyncio.sleep(1)
 
@@ -125,11 +83,15 @@ async def background_warmup():
     except Exception as e:
         print("❌ Hatchery warmup failed:", e)
 
-    try:
-        get_disease()
-        print("✅ Disease ready")
-    except Exception as e:
-        print("❌ Disease warmup failed:", e)
+    # Disease warmup is the most likely to cause OOM/timeouts in cloud.
+    if DISABLE_DISEASE:
+        print("⚠️ Disease warmup skipped (DISABLE_DISEASE=true).")
+    else:
+        try:
+            get_disease()
+            print("✅ Disease ready")
+        except Exception as e:
+            print("❌ Disease warmup failed:", e)
 
     # Register default tanks from test videos if they exist
     try:
@@ -139,17 +101,75 @@ async def background_warmup():
         print(f"📂 Checking test videos in: {test_vid_dir}")
 
         for tank_id in ["tankA", "tankB", "tankC", "tankD"]:
-            vid_path = os.path.join(test_vid_dir, f"{tank_id}.mov")
+            # Keep your existing .mov, but allow mp4 fallback too
+            mov_path = os.path.join(test_vid_dir, f"{tank_id}.mov")
+            mp4_path = os.path.join(test_vid_dir, f"{tank_id}.mp4")
+
+            vid_path = mov_path if os.path.exists(mov_path) else mp4_path
 
             if os.path.exists(vid_path):
-                # We don't verify cv2 here to keep it light; stream will validate
                 hatchery.register_video(tank_id, vid_path)
                 print(f"✅ Registered tank: {tank_id} with path {vid_path}")
             else:
-                print(f"⚠️ Missing test video: {vid_path}")
+                print(f"⚠️ Missing test video: {mov_path} / {mp4_path}")
 
     except Exception as e:
         print(f"❌ Default tanks registration failed: {e}")
+
+
+# ---------------------------
+# Lifespan (modern replacement for @app.on_event)
+# ---------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Franklin AI Service starting... warming models in background (non-blocking).")
+    asyncio.create_task(background_warmup())
+    yield
+
+
+app = FastAPI(title="Franklin AI Service (Merged)", lifespan=lifespan)
+
+# ---------------------------
+# CORS
+# ---------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://franklin-frontend.onrender.com",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ---------------------------
+# Root + health (helps Render checks)
+# ---------------------------
+@app.api_route("/", methods=["GET", "HEAD"])
+def root():
+    return {"status": "ok", "service": "Franklin AI Service"}
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "service": "Franklin AI Combined",
+        "env": {
+            "node_backend": bool(NODE_BACKEND_URL),
+            "ai_service_url": bool(AI_SERVICE_URL),
+            "disable_disease": DISABLE_DISEASE,
+        },
+        "models_loaded": {
+            "unified": unified_processor is not None,
+            "shoreline": shoreline_model is not None,
+            "hatchery": hatchery_engine is not None,
+            "disease": disease_classifier is not None,
+        },
+    }
 
 
 # ---------------------------
@@ -202,17 +222,28 @@ def get_hatchery():
 
 
 def get_disease():
+    """
+    NOTE: This is the most likely part to cause 502 on Render (OOM/timeout).
+    Use DISABLE_DISEASE=true in Render env if needed.
+    """
     global disease_classifier
     if disease_classifier is None:
         try:
             import sys
+
             disease_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "Disease_Detection"))
             if disease_dir not in sys.path:
                 sys.path.append(disease_dir)
 
-            from inference import DiseaseClassifier
+            from inference import DiseaseClassifier  # must exist in Disease_Detection folder
+
             model_path = os.path.join(disease_dir, "protonet_conv4_encoder.keras")
             support_dir = os.path.join(disease_dir, "support_set")
+
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"Disease model not found: {model_path}")
+            if not os.path.exists(support_dir):
+                raise FileNotFoundError(f"Disease support_set not found: {support_dir}")
 
             disease_classifier = DiseaseClassifier(model_path, support_dir)
             print("✅ DiseaseClassifier loaded lazily")
@@ -226,12 +257,8 @@ def get_disease_disabled():
     return {
         "class": "Model Disabled",
         "confidence": 0.0,
-        "probabilities": {
-            "healthy": 0.0,
-            "fp": 0.0,
-            "barnacles": 0.0
-        },
-        "note": "Disease detection is currently disabled in cloud production to meet resource limits."
+        "probabilities": {"healthy": 0.0, "fp": 0.0, "barnacles": 0.0},
+        "note": "Disease detection is disabled in cloud. Set DISABLE_DISEASE=false and use a higher instance if needed.",
     }
 
 
@@ -264,17 +291,24 @@ async def analyze_unified(request: Request, file: UploadFile = File(...)):
 # ---------------------------
 @app.post("/ai/disease/classify")
 async def classify_disease(file: UploadFile = File(...)):
+    # This prevents Render 502 caused by heavy TF model load on small instances
+    if DISABLE_DISEASE:
+        return get_disease_disabled()
+
     try:
         classifier = get_disease()
         content = await file.read()
         result = classifier.classify(content)
-        if "error" in result:
+
+        if isinstance(result, dict) and "error" in result:
             raise HTTPException(500, result["error"])
+
         return result
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Fallback due to error: {e}")
+        # IMPORTANT: return a normal JSON response so the proxy doesn't show 502+CORS
+        print(f"❌ Disease classify error (fallback): {e}")
         return get_disease_disabled()
 
 
@@ -358,13 +392,14 @@ async def predict_video_shoreline(file: UploadFile = File(...)):
                         "risk_level": risk,
                         "notes": notes,
                         "image": {"w": w, "h": h},
-                        "frame_index": int(idx)
+                        "frame_index": int(idx),
                     })
                 except Exception as e:
                     print(f"Frame {idx} prediction failed: {e}")
 
                 if len(frames_out) >= 300:
                     break
+
             idx += 1
 
         cap.release()
@@ -373,7 +408,7 @@ async def predict_video_shoreline(file: UploadFile = File(...)):
             "mode": "video",
             "fps": float(fps),
             "total_frames": int(total_frames),
-            "frames": frames_out
+            "frames": frames_out,
         }
     except HTTPException:
         raise
@@ -448,10 +483,7 @@ def stream_hatchery(video_id: str):
 
         cap.release()
 
-    return StreamingResponse(
-        iter_frames(),
-        media_type="multipart/x-mixed-replace; boundary=frame"
-    )
+    return StreamingResponse(iter_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 
 @app.get("/ai/hatchery/data/{video_id}")
@@ -459,7 +491,7 @@ def data_hatchery(video_id: str):
     hatchery = get_hatchery()
     return hatchery.states.get(
         video_id,
-        {"status": "Offline", "health": "Unknown", "species": "Unknown"}
+        {"status": "Offline", "health": "Unknown", "species": "Unknown"},
     )
 
 
