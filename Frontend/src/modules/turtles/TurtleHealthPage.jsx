@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin } from 'lucide-react';
+import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin, Camera } from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
@@ -52,8 +52,64 @@ export default function TurtleHealthPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [location, setLocation] = useState(null);
+  const locationData = useRef(null); // Place to hold location data for next steps
   const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [showCamera, setShowCamera] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup camera on unmount
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const startCamera = async () => {
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera", err);
+      alert("Could not access camera. Please ensure permissions are granted.");
+      setShowCamera(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
+          setSelectedImage(file);
+          setPreviewUrl(URL.createObjectURL(file));
+          setAnalysisResult(null);
+          stopCamera();
+        }
+      }, 'image/jpeg');
+    }
+  };
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -126,16 +182,42 @@ export default function TurtleHealthPage() {
           <DashboardCard title="Diagnostic Center" icon={Upload} iconColor="text-blue-600" iconBg="bg-blue-100 dark:bg-blue-900/30">
             <div className="space-y-6">
               <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
+              <canvas ref={canvasRef} className="hidden"></canvas>
 
               {!previewUrl ? (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-12 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer bg-gray-50 dark:bg-slate-900/50 group"
-                >
-                  <Image className="h-16 w-16 mx-auto text-gray-300 dark:text-gray-700 mb-4 group-hover:text-blue-500 transition-colors" />
-                  <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-1 leading-none uppercase tracking-widest">Identify Turtle Health</p>
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500">Drop image or click to choose from system</p>
-                </div>
+                showCamera ? (
+                  <div className="relative rounded-2xl overflow-hidden shadow-xl bg-black group border border-slate-800">
+                    <video ref={videoRef} autoPlay playsInline className="w-full h-72 object-cover" />
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4 px-4">
+                      <Button onClick={stopCamera} className="bg-red-500 hover:bg-red-600 text-white shadow-lg flex-1">
+                        Cancel
+                      </Button>
+                      <Button onClick={capturePhoto} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex-1 font-bold">
+                        <Camera className="h-4 w-4 mr-2 inline" /> Capture
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div
+                      onClick={startCamera}
+                      className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-8 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer bg-gray-50 dark:bg-slate-900/50 group flex flex-col items-center justify-center"
+                    >
+                      <Camera className="h-10 w-10 text-gray-300 dark:text-gray-700 mb-3 group-hover:text-blue-500 transition-colors" />
+                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 leading-none uppercase tracking-widest text-wrap">Take Photo</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500">Use device camera</p>
+                    </div>
+
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-8 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer bg-gray-50 dark:bg-slate-900/50 group flex flex-col items-center justify-center"
+                    >
+                      <Image className="h-10 w-10 text-gray-300 dark:text-gray-700 mb-3 group-hover:text-blue-500 transition-colors" />
+                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 leading-none uppercase tracking-widest text-wrap">Upload File</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500">Choose from gallery</p>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="relative rounded-2xl overflow-hidden shadow-xl bg-gray-900 border border-gray-100 dark:border-slate-800 group">
                   <img src={previewUrl} alt="Preview" className="w-full h-72 object-contain" />
