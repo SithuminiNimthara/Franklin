@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+python-multipart
+numpy
+requests
+python-dotenv
+pillow
+opencv-python-headless
+ultralytics
+lapx
+tensorflow-cpu
+keras

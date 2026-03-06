@@ -1,101 +1,156 @@
-import { useRef } from "react";
-import { Droplets, Activity, Upload, AlertTriangle, Bell } from "lucide-react"; // Added Bell & AlertTriangle
-import StatSummaryCard from "../../shared/components/ui/StatSummaryCard";
+import { useEffect, useState } from "react";
+import { Bell, Turtle, Layers, Heart, Database } from "lucide-react";
+
 import TankVideoCard from "../../shared/components/ui/TankVideoCard";
+import UploadAnalyzer from "../../shared/components/ui/UploadAnalyzer";
+import StatSummaryCard from "../../shared/components/ui/StatSummaryCard";
+import { API_BASE_URL } from "../../shared/config";
 
 export default function HatcheryPage() {
-  const fileInputRef = useRef(null);
+  const [alerts, setAlerts] = useState([]);
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
 
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      console.log("Selected file for upload:", file.name);
-      alert(`Selected: ${file.name}`);
-    }
-  };
+  const ALERT_PREVIEW_COUNT = 6;
+
+  const tanks = [
+    { id: "tankA", label: "Tank Alpha" },
+    { id: "tankB", label: "Tank Beta" },
+    { id: "tankC", label: "Tank Gamma" },
+    { id: "tankD", label: "Tank Delta" },
+  ];
+
+  useEffect(() => {
+    const fetchTodayAlerts = () => {
+      fetch(`${API_BASE_URL}/api/hatchery/alerts`)
+        .then((res) => res.json())
+        .then((data) => {
+          const today = new Date().toDateString();
+          setAlerts(
+            data.filter((a) => new Date(a.createdAt).toDateString() === today),
+          );
+        })
+        .catch(() => setAlerts([]));
+    };
+
+    fetchTodayAlerts();
+    const interval = setInterval(fetchTodayAlerts, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const visibleAlerts = showAllAlerts
+    ? alerts
+    : alerts.slice(0, ALERT_PREVIEW_COUNT);
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto p-4">
-      {/* 1. Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-2">
+    <div className="flex flex-col gap-6">
+      {/* HEADER */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Hatchery Management
           </h1>
-          <p className="text-gray-800 mt-1">
-            Species Detection and Behaviors Analysis
+          <p className="text-gray-600 dark:text-gray-400 mt-1 text-md">
+            Automated monitoring of hatchling vitality and development
           </p>
         </div>
 
-        <div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept="video/*"
-            className="hidden"
-          />
-          <button
-            onClick={handleUploadClick}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-semibold transition-all shadow-lg hover:shadow-indigo-200 active:scale-95"
-          >
-            <Upload className="w-5 h-5" />
-            <span>Upload Footage</span>
-          </button>
+        <div className="bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-4 py-2 rounded-xl font-bold text-xs flex items-center shadow-sm">
+          <span className="inline-block h-2 w-2 bg-teal-500 rounded-full mr-2 animate-pulse" />
+          RECIRCULATION OPERATIONAL
         </div>
       </div>
 
-      {/* 2. Main Content: Video & Real-time Stats */}
-      <div className="flex flex-col lg:h-[600px]">
-        <TankVideoCard tankId="tankA" tankLabel="Tank A" />
-      </div>
+      {/* STATS */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatSummaryCard icon={Turtle} value="40" label="Total Hatchlings" />
+        <StatSummaryCard icon={Layers} value="2" label="Species Diversity" />
+        <StatSummaryCard icon={Heart} value="92%" label="Vitality Avg" />
+        <StatSummaryCard icon={Database} value="4" label="Active Units" />
+      </section>
 
-      {/* 3. Bottom Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <StatSummaryCard
-          value="118"
-          label="Total Hatchlings Count"
-          colorTheme="blue"
-        />
-        <StatSummaryCard
-          value="98.5%"
-          label="Survival Rate"
-          colorTheme="green"
-        />
-      </div>
+      {/* VIDEOS */}
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border dark:border-slate-800 shadow-xl overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50 dark:bg-slate-800/40">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            Live Surveillance Detections
+          </h2>
+        </div>
 
-      {/* Alert System  */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2">
-              <AlertTriangle className="w-6 h-6 text-orange-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">System Alerts</h3>
-              <p className="text-sm text-gray-500">
-                Real-time notifications for critical events
-              </p>
-            </div>
-          </div>
-          <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-full border border-gray-200">
-            System Idle
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {tanks.map((tank) => (
+            <TankVideoCard
+              key={tank.id}
+              tankId={tank.id}
+              tankLabel={tank.label}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* ANALYZER */}
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border dark:border-slate-800 shadow-xl p-6">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+          Historical Behavior Analysis
+        </h3>
+        <UploadAnalyzer />
+      </section>
+
+      {/* ALERTS */}
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border dark:border-slate-800 shadow-xl flex flex-col">
+        <div className="px-6 py-4 border-b bg-gray-50 dark:bg-slate-800/40 flex justify-between">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+            Anomaly Log
+          </h3>
+          <span className="text-gray-500 dark:text-gray-400 font-semibold">
+            Today
           </span>
         </div>
 
-        {/* Empty State Box */}
-        <div className="h-48 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center bg-gray-50/50">
-          <Bell className="w-10 h-10 text-gray-300 mb-3" />
-          <p className="text-gray-500 font-medium">No active alerts detected</p>
-          <p className="text-sm text-gray-400">
-            Abnormal behaviors and mix species will appear here automatically.
-          </p>
+        <div className="p-6 overflow-y-auto max-h-[500px] custom-scrollbar">
+          {alerts.length === 0 ? (
+            <div className="h-[300px] flex flex-col items-center justify-center border-2 border-dashed rounded-xl text-gray-400 dark:text-gray-500">
+              <Bell className="w-8 h-8 mb-3" />
+              <p className="text-lg">Alerts</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-4">
+                {visibleAlerts.map((alert) => (
+                  <div
+                    key={alert._id}
+                    className="p-4 bg-gray-50 dark:bg-slate-800 border-l-4 border-red-500 rounded-xl"
+                  >
+                    <div className="flex justify-between mb-1">
+                      <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                        {alert.tank} Unit
+                      </span>
+                      <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                        {alert.status}
+                      </span>
+                    </div>
+                    <p className="text-md font-semibold text-gray-900 dark:text-white">
+                      {alert.message}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* SEE MORE BUTTON */}
+              {alerts.length > ALERT_PREVIEW_COUNT && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={() => setShowAllAlerts((prev) => !prev)}
+                    className="px-4 py-2 text-sm font-semibold rounded-lg bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/40 dark:text-teal-300 dark:hover:bg-teal-900 transition"
+                  >
+                    {showAllAlerts ? "See less" : "See more"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

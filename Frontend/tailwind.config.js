@@ -1,7 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  darkMode: 'class',
   theme: {
+
     extend: {
       colors: {
         ocean: {
@@ -27,11 +29,16 @@ export default {
           '0%, 100%': { opacity: '0.8', transform: 'scale(1)' },
           '50%': { opacity: '1', transform: 'scale(1.05)' },
         },
+        slideUp: {
+          '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
       },
       animation: {
         slideDown: 'slideDown 0.3s ease-out',
         fadeIn: 'fadeIn 0.5s ease-in-out',
         pulseGlow: 'pulseGlow 2s infinite ease-in-out',
+        slideUp: 'slideUp 0.4s ease-out',
       },
       boxShadow: {
         glow: '0 0 20px rgba(6, 182, 212, 0.5)',

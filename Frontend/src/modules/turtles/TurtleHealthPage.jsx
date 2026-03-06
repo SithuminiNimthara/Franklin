@@ -1,14 +1,116 @@
-import { useState, useRef } from 'react';
-import { Upload, Activity, AlertCircle, CheckCircle, Image, X } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin, Camera } from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
+import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
+import { API_BASE_URL, DISEASE_MODEL_URL } from '../../shared/config';
+
+function HealthStats({ refreshTrigger }) {
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/health/stats`)
+      .then(res => res.json())
+      .then(data => setStats(data))
+      .catch(err => console.error("Failed to fetch stats", err));
+  }, [refreshTrigger]);
+
+  if (!stats) return <p className="text-gray-500 animate-pulse">Loading analytics...</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/10 dark:to-cyan-900/10 rounded-xl p-4 border border-blue-100 dark:border-blue-900/20 shadow-sm">
+        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Total Scans (24h)</p>
+        <p className="text-2xl font-black text-gray-900 dark:text-white">{stats.recentScans}</p>
+        <p className="text-[10px] text-green-600 dark:text-green-400 font-bold mt-1 uppercase italic">Live Syncing</p>
+      </div>
+
+      <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl p-4 border border-green-100 dark:border-green-900/20 shadow-sm">
+        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Healthy Turtles</p>
+        <p className="text-2xl font-black text-green-700 dark:text-green-400">{stats.stats.healthy.count}</p>
+        <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-1">{stats.stats.healthy.percentage}% of total</p>
+      </div>
+
+      <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/10 dark:to-orange-900/10 rounded-xl p-4 border border-red-100 dark:border-red-900/20 shadow-sm">
+        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">FP Cases</p>
+        <p className="text-2xl font-black text-red-700 dark:text-red-400">{stats.stats.fp.count}</p>
+        <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-1">{stats.stats.fp.percentage}% of total</p>
+      </div>
+
+      <div className="bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 rounded-xl p-4 border border-amber-100 dark:border-amber-900/20 shadow-sm">
+        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Barnacle Cases</p>
+        <p className="text-2xl font-black text-amber-700 dark:text-amber-400">{stats.stats.barnacles.count}</p>
+        <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-1">{stats.stats.barnacles.percentage}% of total</p>
+      </div>
+    </div>
+  );
+}
 
 export default function TurtleHealthPage() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [location, setLocation] = useState(null);
+  const locationData = useRef(null); // Place to hold location data for next steps
   const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [confirmLocation, setConfirmLocation] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup camera on unmount
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const startCamera = async () => {
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera", err);
+      alert("Could not access camera. Please ensure permissions are granted.");
+      setShowCamera(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
+          setSelectedImage(file);
+          setPreviewUrl(URL.createObjectURL(file));
+          setAnalysisResult(null);
+          stopCamera();
+        }
+      }, 'image/jpeg');
+    }
+  };
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -24,11 +126,22 @@ export default function TurtleHealthPage() {
     setSelectedImage(null);
     setPreviewUrl(null);
     setAnalysisResult(null);
+    setConfirmLocation(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const analyzeImage = async () => {
     if (!selectedImage) return;
+
+    if (!confirmLocation) {
+      alert("Please tick the checkbox to confirm your location before identifying the health status.");
+      return;
+    }
+
+    if (!location) {
+      alert("Location coordinate tracking failed. Please allow location permissions or click on the map to pinpoint.");
+      return;
+    }
 
     setIsAnalyzing(true);
     setAnalysisResult(null);
@@ -37,161 +150,164 @@ export default function TurtleHealthPage() {
     formData.append('file', selectedImage);
 
     try {
-      // Use dedicated Disease Service on 8001
-      const response = await fetch('http://localhost:8001/classify', {
+      const response = await fetch(`${DISEASE_MODEL_URL}/ai/disease/classify`, {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Analysis failed');
-      }
-
+      if (!response.ok) throw new Error('Analysis failed');
       const data = await response.json();
       setAnalysisResult(data);
+
+      await fetch(`${API_BASE_URL}/api/health/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          diagnosisClass: data.class,
+          confidence: data.confidence,
+          probabilities: data.probabilities,
+          location: location,
+          notes: 'Auto-saved from diagnostics'
+        })
+      });
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error analyzing image:', error);
-      alert('Failed to analyze image. Please ensure the backend is running.');
+      alert('Failed to analyze image. Ensure backend is running.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const getConfidenceLevel = (conf) => {
-    return (conf * 100).toFixed(1) + '%';
-  };
-
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Turtle Health Diagnostics</h1>
-        <p className="text-gray-600 mt-1">AI-powered disease detection and health monitoring</p>
+        <h1 className="text-3xl font-bold dark:text-white">Health Diagnostics</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm italic">AI-powered disease detection and health monitoring</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2">
-          <DashboardCard
-            title="Upload Image for Diagnosis"
-            icon={Upload}
-            iconColor="text-blue-600"
-            iconBg="bg-blue-100"
-          >
+          <DashboardCard title="Diagnostic Center" icon={Upload} iconColor="text-blue-600" iconBg="bg-blue-100 dark:bg-blue-900/30">
             <div className="space-y-6">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                className="hidden"
-                accept="image/jpeg,image/png,image/heic"
-              />
+              <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
+              <canvas ref={canvasRef} className="hidden"></canvas>
 
               {!previewUrl ? (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-4 border-dashed border-gray-300 rounded-2xl p-12 text-center hover:border-blue-400 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 transition-all duration-300 cursor-pointer bg-gradient-to-br from-gray-50 to-blue-50/30 group"
-                >
-                  <div className="relative inline-block mb-4">
-                    <div className="absolute inset-0 bg-blue-400 rounded-full blur-xl opacity-0 group-hover:opacity-30 transition-opacity"></div>
-                    <Image className="h-20 w-20 text-gray-400 group-hover:text-blue-500 transition-colors relative" />
+                showCamera ? (
+                  <div className="relative rounded-2xl overflow-hidden shadow-xl bg-black group border border-slate-800">
+                    <video ref={videoRef} autoPlay playsInline className="w-full h-72 object-cover" />
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4 px-4">
+                      <Button onClick={stopCamera} className="bg-red-500 hover:bg-red-600 text-white shadow-lg flex-1">
+                        Cancel
+                      </Button>
+                      <Button onClick={capturePhoto} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex-1 font-bold">
+                        <Camera className="h-4 w-4 mr-2 inline" /> Capture
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-lg font-semibold text-gray-700 mb-2">
-                    Drop image here or click to upload
-                  </p>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Supports JPG, PNG, HEIC formats (Max 10MB)
-                  </p>
-                  <Button className="px-8 py-3 shadow-lg hover:shadow-2xl">
-                    Select Image
-                  </Button>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div
+                      onClick={startCamera}
+                      className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-8 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer bg-gray-50 dark:bg-slate-900/50 group flex flex-col items-center justify-center"
+                    >
+                      <Camera className="h-10 w-10 text-gray-300 dark:text-gray-700 mb-3 group-hover:text-blue-500 transition-colors" />
+                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 leading-none uppercase tracking-widest text-wrap">Take Photo</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500">Use device camera</p>
+                    </div>
+
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-8 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer bg-gray-50 dark:bg-slate-900/50 group flex flex-col items-center justify-center"
+                    >
+                      <Image className="h-10 w-10 text-gray-300 dark:text-gray-700 mb-3 group-hover:text-blue-500 transition-colors" />
+                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 leading-none uppercase tracking-widest text-wrap">Upload File</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500">Choose from gallery</p>
+                    </div>
+                  </div>
+                )
               ) : (
-                <div className="relative rounded-2xl overflow-hidden shadow-lg bg-gray-900 group">
-                  <img src={previewUrl} alt="Preview" className="w-full h-80 object-contain bg-gray-900" />
-                  <div className="absolute top-4 right-4">
-                    <button onClick={clearSelection} className="bg-white/20 hover:bg-white/40 backdrop-blur-md p-2 rounded-full text-white transition-all">
-                      <X className="h-5 w-5" />
+                <div className="relative rounded-2xl overflow-hidden shadow-xl bg-gray-900 border border-gray-100 dark:border-slate-800 group">
+                  <img src={previewUrl} alt="Preview" className="w-full h-72 object-contain" />
+                  <div className="absolute top-4 right-4 flex space-x-2">
+                    <button onClick={clearSelection} className="bg-red-500 hover:bg-red-600 p-2 rounded-lg text-white shadow-lg transition-all">
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
                   {!analysisResult && !isAnalyzing && (
-                    <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black/80 to-transparent flex justify-center">
-                      <Button onClick={analyzeImage} className="px-8 py-3 shadow-xl hover:scale-105 transition-transform bg-blue-600 hover:bg-blue-700 border-none text-white">
-                        Run Diagnosis
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Button onClick={analyzeImage} className="px-10 py-3 font-bold text-sm bg-blue-600 hover:bg-blue-700 text-white shadow-2xl rounded-xl">
+                        Identify Health Status
                       </Button>
                     </div>
                   )}
                   {isAnalyzing && (
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center flex-col">
-                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-400 border-t-transparent mb-4"></div>
-                      <p className="text-white font-semibold animate-pulse">Analyzing Image Patterns...</p>
+                      <Activity className="h-10 w-10 text-blue-400 animate-pulse mb-3" />
+                      <p className="text-white text-xs font-black uppercase tracking-widest">Analyzing Biological Patterns...</p>
                     </div>
                   )}
                 </div>
               )}
 
+              {/* Location Picker */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-4 w-4 text-gray-500" />
+                  <p className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest">Location Pinpoint</p>
+                </div>
+                <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-sm relative z-0">
+                  <GoogleMapPicker onLocationSelect={setLocation} />
+                </div>
+                {location && <p className="text-[10px] text-gray-400 text-right">Selected: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</p>}
+
+                {/* Location Confirmation Toggle */}
+                <div className={`flex items-center space-x-3 p-3 rounded-xl border transition-all ${confirmLocation ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-900/40' : 'bg-gray-50 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700'}`}>
+                  <input
+                    type="checkbox"
+                    id="location-confirm"
+                    checked={confirmLocation}
+                    onChange={(e) => setConfirmLocation(e.target.checked)}
+                    className="h-5 w-5 text-green-600 rounded border-gray-300 focus:ring-green-500 cursor-pointer"
+                  />
+                  <div className="flex flex-col">
+                    <label htmlFor="location-confirm" className="text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer">
+                      Confirm Location Recording
+                    </label>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer" onClick={() => setConfirmLocation(!confirmLocation)}>
+                      I confirm that the map pinpoints the exact location of this turtle for the database.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {analysisResult && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <h3 className="text-md font-semibold text-gray-800 mb-4">Diagnosis Results</h3>
-
-                  <div className={`border-2 rounded-xl p-6 ${analysisResult.class === 'healthy'
-                    ? 'bg-green-50 border-green-200'
-                    : analysisResult.class === 'fp'
-                      ? 'bg-red-50 border-red-200'
-                      : 'bg-amber-50 border-amber-200'
-                    }`}>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className={`p-4 rounded-xl shadow-md ${analysisResult.class === 'healthy' ? 'bg-green-500' :
-                          analysisResult.class === 'fp' ? 'bg-red-500' : 'bg-amber-500'
-                          }`}>
-                          {analysisResult.class === 'healthy' ? (
-                            <CheckCircle className="h-8 w-8 text-white" />
-                          ) : (
-                            <AlertCircle className="h-8 w-8 text-white" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-xl font-bold text-gray-900 capitalize">
-                            Result: {analysisResult.class === 'fp' ? 'Fibropapillomatosis (FP)' : analysisResult.class}
-                          </p>
-                          <p className="text-gray-600">
-                            Confidence: <span className="font-semibold">{getConfidenceLevel(analysisResult.confidence)}</span>
-                          </p>
-                        </div>
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className={`border-2 rounded-2xl p-6 ${analysisResult.class === 'healthy' ? 'bg-green-50/50 dark:bg-green-900/10 border-green-100 dark:border-green-900/20' : analysisResult.class === 'fp' ? 'bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/20' : 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20'}`}>
+                    <div className="flex items-center space-x-4 mb-6">
+                      <div className={`p-4 rounded-xl text-white shadow-lg ${analysisResult.class === 'healthy' ? 'bg-green-500' : analysisResult.class === 'fp' ? 'bg-red-500' : 'bg-amber-500'}`}>
+                        {analysisResult.class === 'healthy' ? <CheckCircle className="h-6 w-6" /> : <AlertCircle className="h-6 w-6" />}
                       </div>
-                      <span className={`px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wide ${analysisResult.class === 'healthy' ? 'bg-green-200 text-green-800' :
-                        analysisResult.class === 'fp' ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'
-                        }`}>
-                        {analysisResult.class}
-                      </span>
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Detection Result</p>
+                        <h3 className="text-xl font-black dark:text-white uppercase leading-none">{analysisResult.class === 'fp' ? 'Fibropapillomatosis (FP)' : analysisResult.class}</h3>
+                        <p className="text-xs font-medium text-gray-500 mt-1 italic">Confidence: {(analysisResult.confidence * 100).toFixed(1)}%</p>
+                      </div>
                     </div>
 
-                    <div className="mt-6">
-                      <p className="font-medium text-gray-800 mb-2">Class Potentials (Probabilities):</p>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {Object.entries(analysisResult.probabilities || {}).map(([key, val]) => (
-                          <div key={key} className="bg-white/60 p-3 rounded-lg">
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="capitalize font-medium text-gray-700">{key}</span>
-                              <span className="text-gray-500">{(val * 100).toFixed(1)}%</span>
-                            </div>
-                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${key === 'healthy' ? 'bg-green-500' :
-                                  key === 'fp' ? 'bg-red-500' : 'bg-amber-500'
-                                  }`}
-                                style={{ width: `${val * 100}%` }}
-                              ></div>
-                            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {Object.entries(analysisResult.probabilities || {}).map(([key, val]) => (
+                        <div key={key} className="bg-white/40 dark:bg-slate-900/40 p-3 rounded-xl border border-white/20 dark:border-slate-800">
+                          <div className="flex justify-between text-[10px] mb-1.5 font-bold uppercase tracking-tighter">
+                            <span className="text-gray-600 dark:text-gray-400">{key}</span>
+                            <span className="text-gray-900 dark:text-white">{(val * 100).toFixed(0)}%</span>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-gray-200/50">
-                      <p className="text-xs text-gray-500">
-                        Note: This diagnosis is based on a Few-Shot Learning Model (Protonet-Conv4).
-                        If the results are inconsistent, please ensure the system has been calibrated with the latest support set.
-                      </p>
+                          <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className={`h-full ${key === 'healthy' ? 'bg-green-500' : key === 'fp' ? 'bg-red-500' : 'bg-amber-500'}`} style={{ width: `${val * 100}%` }}></div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -201,72 +317,24 @@ export default function TurtleHealthPage() {
         </div>
 
         <div className="space-y-6">
-          <DashboardCard
-            title="Health Statistics"
-            icon={Activity}
-            iconColor="text-teal-600"
-            iconBg="bg-teal-100"
-          >
-            <div className="space-y-4">
-              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-600 mb-1">Total Scans (24h)</p>
-                <p className="text-3xl font-bold text-gray-900">23</p>
-                <p className="text-xs text-green-600 font-medium mt-1">↑ 8 from yesterday</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-600 mb-1">Healthy Turtles</p>
-                <p className="text-3xl font-bold text-green-700">13</p>
-                <p className="text-xs text-gray-600 mt-1">56.5% of scans</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-600 mb-1">FP Cases</p>
-                <p className="text-3xl font-bold text-red-700">3</p>
-                <p className="text-xs text-gray-600 mt-1">13% of scans</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-600 mb-1">Barnacle Cases</p>
-                <p className="text-3xl font-bold text-amber-700">7</p>
-                <p className="text-xs text-gray-600 mt-1">30.4% of scans</p>
-              </div>
-            </div>
+          <DashboardCard title="Biological Metrics" icon={Activity} iconColor="text-teal-600" iconBg="bg-teal-100 dark:bg-teal-900/30">
+            <HealthStats refreshTrigger={refreshTrigger} />
           </DashboardCard>
 
-          <DashboardCard
-            title="Treatment Guidelines"
-            icon={AlertCircle}
-            iconColor="text-purple-600"
-            iconBg="bg-purple-100"
-          >
-            <div className="space-y-3">
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3">
-                <p className="text-sm font-semibold text-gray-800 mb-1">Fibropapillomatosis (FP)</p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4 list-disc">
-                  <li>Isolate affected turtle</li>
-                  <li>Schedule surgical removal</li>
-                  <li>Monitor for recurrence</li>
-                </ul>
-              </div>
-
-              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-3">
-                <p className="text-sm font-semibold text-gray-800 mb-1">Barnacle Infestation</p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4 list-disc">
-                  <li>Gentle manual removal</li>
-                  <li>Clean affected areas</li>
-                  <li>Apply healing ointment</li>
-                </ul>
-              </div>
-
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3">
-                <p className="text-sm font-semibold text-gray-800 mb-1">Preventive Care</p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4 list-disc">
-                  <li>Regular health checkups</li>
-                  <li>Water quality monitoring</li>
-                  <li>Nutrition optimization</li>
-                </ul>
-              </div>
+          <DashboardCard title="Care Protocols" icon={AlertCircle} iconColor="text-purple-600" iconBg="bg-purple-100 dark:bg-purple-900/30">
+            <div className="space-y-2">
+              {[
+                { label: 'FP (Disease)', color: 'bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-400', items: ['Isolate immediately', 'Surgical review', 'Long-term monitoring'] },
+                { label: 'Barnacles', color: 'bg-amber-50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400', items: ['Manual extraction', 'Surface cleaning', 'Healing ointment'] },
+                { label: 'Safe Health', color: 'bg-green-50 dark:bg-green-900/10 text-green-700 dark:text-green-400', items: ['Tag and release', 'Documentation update', 'Growth recording'] }
+              ].map((protocol, pi) => (
+                <div key={pi} className={`${protocol.color} rounded-xl p-3 border border-current opacity-80 border-opacity-10`}>
+                  <p className="text-[10px] font-black uppercase mb-1.5">{protocol.label}</p>
+                  <ul className="text-[10px] grid grid-cols-1 gap-1">
+                    {protocol.items.map((it, ii) => <li key={ii} className="flex items-center"><CheckCircle className="h-2.5 w-2.5 mr-2 opacity-60" />{it}</li>)}
+                  </ul>
+                </div>
+              ))}
             </div>
           </DashboardCard>
         </div>

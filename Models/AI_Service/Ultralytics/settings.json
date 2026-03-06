@@ -1,0 +1,21 @@
+{
+  "settings_version": "0.0.6",
+  "datasets_dir": "E:\\Project\\Franklin\\Models\\AI_Service\\datasets",
+  "weights_dir": "weights",
+  "runs_dir": "runs",
+  "uuid": "1f16f8b6a9eefd7202d5e085f0046abf102ee60cef60e6d7f4f1e09a3fb8a505",
+  "sync": true,
+  "api_key": "",
+  "openai_api_key": "",
+  "clearml": true,
+  "comet": true,
+  "dvc": true,
+  "hub": true,
+  "mlflow": true,
+  "neptune": true,
+  "raytune": true,
+  "tensorboard": false,
+  "wandb": false,
+  "vscode_msg": true,
+  "openvino_msg": true
+}

@@ -1,12 +1,22 @@
 import { streamingService } from './streaming.service.js';
-import { config } from '../../config/env.js';
 
 export const streamingController = {
     getStatus: (req, res) => {
-        const streams = config.cameras.map(c => `/streams/${c.id}/stream.m3u8`);
-        res.json({
-            message: 'EZVIZ HLS streaming server operational',
-            streams
-        });
+        try {
+            const status = streamingService.getStatus();
+            res.json({ success: true, data: status });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    getHealth: (req, res) => {
+        try {
+            const { cameraId } = req.params;
+            const health = streamingService.getHealth(cameraId);
+            res.json({ success: true, data: health });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
     }
 };
