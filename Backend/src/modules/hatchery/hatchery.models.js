@@ -27,15 +27,16 @@ const AlertSchema = new mongoose.Schema({
   message: { type: String, required: true },
   tank: { type: String, required: true },
   location: { type: String },
-  status: { 
-    type: String, 
+  status: {
+    type: String,
     enum: ["pending", "acknowledged", "resolved"],
-    default: "pending" 
+    default: "pending"
   },
-  notes: { type: String, default: "" },           
-  resolvedBy: { type: String },                   
-  resolvedAt: { type: Date },                     
+  notes: { type: String, default: "" },
+  resolvedBy: { type: String },
+  resolvedAt: { type: Date },
   createdAt: { type: Date, default: Date.now },
+  linkedRecordId: { type: mongoose.Schema.Types.ObjectId },
 });
 
 

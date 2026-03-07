@@ -136,8 +136,22 @@ export default function Navigation({ activeTab, onTabChange }) {
                       ) : (
                         <div className="divide-y divide-gray-50 dark:divide-slate-800/50">
                           {previewAlerts.map(alert => (
-                            <div key={alert._id || alert.id} className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
-                              <p className="text-xs font-bold text-gray-900 dark:text-white mb-1.5 line-clamp-2 leading-relaxed">
+                            <div
+                              key={alert._id || alert.id}
+                              onClick={() => {
+                                setAlertsDropdownOpen(false);
+                                // Determine target route based on alert type
+                                if (alert.type === 'health_warning') {
+                                  onTabChange('health', alert.linkedRecordId);
+                                }
+                                else if (alert.type === 'nest_motion') {
+                                  onTabChange('nests', alert.linkedRecordId);
+                                }
+                                else onTabChange('hatchery'); // Default fallback
+                              }}
+                              className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer group"
+                            >
+                              <p className="text-xs font-bold text-gray-900 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-400 mb-1.5 line-clamp-2 leading-relaxed transition-colors">
                                 {alert.message}
                               </p>
                               <div className="flex justify-between items-center">

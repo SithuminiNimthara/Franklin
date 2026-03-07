@@ -48,7 +48,8 @@ export const saveHealthDiagnosis = async (req, res) => {
                 type: "health_warning",
                 message: `CRITICAL: A turtle was diagnosed with ${diseaseName} (Confidence: ${confPercent}%). Immediate isolation and medical attention required.`,
                 tank: "Diagnostic Center",
-                location: location ? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}` : "Unknown"
+                location: location ? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}` : "Unknown",
+                linkedRecordId: savedDiagnosis._id
             });
 
             await alert.save();
@@ -140,6 +141,22 @@ export const getHealthLocations = async (req, res) => {
 
         res.json(locations);
     } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+export const getDiagnosisById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const diagnosis = await TurtleHealth.findById(id);
+
+        if (!diagnosis) {
+            return res.status(404).json({ success: false, message: 'Diagnostic record not found' });
+        }
+
+        res.json({ success: true, data: diagnosis });
+    } catch (error) {
+        console.error('Error fetching diagnosis by ID:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 }

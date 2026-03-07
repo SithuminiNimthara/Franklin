@@ -41,12 +41,33 @@ function HealthStats({ refreshTrigger }) {
 }
 
 /* ───────────────────────── Recent Diagnoses Table ───────────────────────── */
-function RecentDiagnosesTracker({ refreshTrigger }) {
+function RecentDiagnosesTracker({ refreshTrigger, initialRecordId }) {
   const [history, setHistory] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+
+  // If a deep link is passed, fetch the specific record to auto-open it
+  useEffect(() => {
+    const fetchSpecificRecord = async () => {
+      console.log("Deep link received with ID:", initialRecordId);
+      if (initialRecordId) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/health/${initialRecordId}`);
+          const data = await res.json();
+          console.log("Deep link fetch response:", data);
+          if (data && data.success && data.data) {
+            // Preemptively open the modal
+            setSelectedRecord(data.data);
+          }
+        } catch (err) {
+          console.error("Failed to load initial record from deep link:", err);
+        }
+      }
+    };
+    fetchSpecificRecord();
+  }, [initialRecordId]);
 
   useEffect(() => {
     // Reset to page 1 on fresh load or when refreshTrigger changes
@@ -623,7 +644,7 @@ function DiagnosticModal({ isOpen, onClose, onDiagnosisComplete }) {
 }
 
 /* ───────────────────────── Main Page ───────────────────────── */
-export default function TurtleHealthPage() {
+export default function TurtleHealthPage({ initialRecordId }) {
   const [showModal, setShowModal] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -677,7 +698,7 @@ export default function TurtleHealthPage() {
       </DashboardCard>
 
       {/* Recent Diagnoses History */}
-      <RecentDiagnosesTracker refreshTrigger={refreshTrigger} />
+      <RecentDiagnosesTracker refreshTrigger={refreshTrigger} initialRecordId={initialRecordId} />
 
       {/* Diagnostic Modal */}
       <DiagnosticModal

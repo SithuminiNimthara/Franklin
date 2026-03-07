@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { AlertTriangle, Clock, MapPin, CheckCircle, Search, Filter } from "lucide-react";
 import { API_BASE_URL } from "../../shared/config";
 
-export default function NotificationsPage() {
+export default function NotificationsPage({ onTabChange }) {
     const [alerts, setAlerts] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -64,7 +64,7 @@ export default function NotificationsPage() {
                             </h2>
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {pendingAlerts.map(alert => (
-                                    <NotificationCard key={alert._id || alert.id} alert={alert} getTimeAgo={getTimeAgo} />
+                                    <NotificationCard key={alert._id || alert.id} alert={alert} getTimeAgo={getTimeAgo} onTabChange={onTabChange} />
                                 ))}
                             </div>
                         </div>
@@ -78,7 +78,7 @@ export default function NotificationsPage() {
                             </h2>
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {otherAlerts.map(alert => (
-                                    <NotificationCard key={alert._id || alert.id} alert={alert} getTimeAgo={getTimeAgo} isResolved={true} />
+                                    <NotificationCard key={alert._id || alert.id} alert={alert} getTimeAgo={getTimeAgo} isResolved={true} onTabChange={onTabChange} />
                                 ))}
                             </div>
                         </div>
@@ -97,9 +97,22 @@ export default function NotificationsPage() {
     );
 }
 
-function NotificationCard({ alert, getTimeAgo, isResolved }) {
+function NotificationCard({ alert, getTimeAgo, isResolved, onTabChange }) {
+    const handleCardClick = () => {
+        if (alert.type === 'health_warning') {
+            onTabChange && onTabChange('health', alert.linkedRecordId);
+        } else if (alert.type === 'nest_motion') {
+            onTabChange && onTabChange('nests', alert.linkedRecordId);
+        } else {
+            onTabChange && onTabChange('hatchery');
+        }
+    };
+
     return (
-        <div className={`bg-white dark:bg-slate-900 border ${isResolved ? 'border-gray-100 dark:border-slate-800 opacity-75' : 'border-red-100 dark:border-red-900/30'} rounded-2xl p-5 shadow-sm hover:shadow-md transition-all`}>
+        <div
+            onClick={handleCardClick}
+            className={`bg-white dark:bg-slate-900 border ${isResolved ? 'border-gray-100 dark:border-slate-800 opacity-75' : 'border-red-100 dark:border-red-900/30'} rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-cyan-500 cursor-pointer transition-all group`}
+        >
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center space-x-2">
                     {!isResolved && <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />}

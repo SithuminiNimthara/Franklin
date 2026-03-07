@@ -28,6 +28,14 @@ const ProtectedRoute = ({ children }) => {
 
 const DashboardLayout = ({ initialTab = "home" }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [targetRecordId, setTargetRecordId] = useState(
+    new URLSearchParams(window.location.search).get('recordId') || null
+  );
+
+  const handleTabChange = (tab, recordId = null) => {
+    setActiveTab(tab);
+    setTargetRecordId(recordId || null);
+  };
   const { getToken } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -53,15 +61,14 @@ const DashboardLayout = ({ initialTab = "home" }) => {
 
   const renderPage = () => {
     switch (activeTab) {
-      case "home": return <HomePage onTabChange={setActiveTab} />;
-      case "health": return <TurtleHealthPage />;
+      case "home": return <HomePage onTabChange={handleTabChange} />;
+      case "health": return <TurtleHealthPage initialRecordId={targetRecordId} />;
       case "nests": return <NestMonitoringPage />;
       case "shoreline": return <ShorelineRiskPage />;
       case "hatchery": return <HatcheryPage />;
       case "reports": return <ReportsPage />;
-      case "profile": return <ProfilePage />;
-      case "notifications": return <NotificationsPage />;
-      default: return <HomePage onTabChange={setActiveTab} />;
+      case "notifications": return <NotificationsPage onTabChange={handleTabChange} />;
+      default: return <HomePage onTabChange={handleTabChange} />;
     }
   };
 
@@ -69,7 +76,7 @@ const DashboardLayout = ({ initialTab = "home" }) => {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-gray-900 dark:text-gray-100 transition-colors duration-500 selection:bg-cyan-500/30">
       <Navigation
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
