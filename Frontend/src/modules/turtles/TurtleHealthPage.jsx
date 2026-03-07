@@ -256,18 +256,26 @@ function DiagnosisDetailsModal({ record, onClose }) {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-700">
-              <div className="flex items-center space-x-2 mb-2">
+            <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-700 col-span-2">
+              <div className="flex items-center space-x-2 mb-3">
                 <MapPin className="h-4 w-4 text-blue-500" />
                 <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest">GPS Coordinates</p>
               </div>
               {record.location && record.location.lat ? (
-                <p className="font-mono text-sm dark:text-white">{record.location.lat.toFixed(5)}, {record.location.lng.toFixed(5)}</p>
+                <div className="h-48 rounded-xl overflow-hidden border border-gray-200 dark:border-slate-600 shadow-inner w-full relative">
+                  <GoogleMapPicker initialLocation={record.location} />
+                  <div className="absolute bottom-2 left-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow border border-gray-200 dark:border-slate-700 pointer-events-none z-10">
+                    <p className="font-mono text-[10px] font-bold dark:text-white">
+                      {record.location.lat.toFixed(5)}, {record.location.lng.toFixed(5)}
+                    </p>
+                  </div>
+                </div>
               ) : (
                 <p className="text-sm dark:text-gray-400 italic">Location unrecorded</p>
               )}
             </div>
-            <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-700">
+
+            <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-700 col-span-2">
               <div className="flex items-center space-x-2 mb-2">
                 <History className="h-4 w-4 text-purple-500" />
                 <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest">System Notes</p>
