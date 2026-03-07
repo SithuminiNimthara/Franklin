@@ -1,4 +1,6 @@
 import { TurtleHealth } from './health.model.js';
+import { HatcheryAlert } from '../hatchery/hatchery.models.js';
+import { sendAlertToActiveUsers } from '../hatchery/hatchery.alerts.controller.js';
 
 export const saveHealthDiagnosis = async (req, res) => {
     try {
@@ -17,6 +19,24 @@ export const saveHealthDiagnosis = async (req, res) => {
         });
 
         const savedDiagnosis = await newDiagnosis.save();
+
+        if (diagnosisClass === 'fp' || diagnosisClass === 'barnacles') {
+            const diseaseName = diagnosisClass === 'fp' ? 'Fibropapillomatosis (FP)' : 'Barnacles';
+            const confPercent = (confidence * 100).toFixed(1);
+
+            const alert = new HatcheryAlert({
+                type: "health_warning",
+                message: `CRITICAL: A turtle was diagnosed with ${diseaseName} (Confidence: ${confPercent}%). Immediate isolation and medical attention required.`,
+                tank: "Diagnostic Center",
+                location: location ? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}` : "Unknown"
+            });
+
+            await alert.save();
+
+            sendAlertToActiveUsers(alert)
+                .then(count => console.log(`Health alert emails sent to ${count} user(s)`))
+                .catch(err => console.error("Email failed:", err.message));
+        }
 
         res.status(201).json({
             success: true,
