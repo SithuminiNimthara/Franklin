@@ -43,73 +43,117 @@ function HealthStats({ refreshTrigger }) {
 /* ───────────────────────── Recent Diagnoses Table ───────────────────────── */
 function RecentDiagnosesTracker({ refreshTrigger }) {
   const [history, setHistory] = useState([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/health/recent`)
-      .then(res => res.json())
-      .then(data => { if (Array.isArray(data)) setHistory(data); })
-      .catch(err => console.error("Failed to fetch history", err));
+    // Reset to page 1 on fresh load or when refreshTrigger changes
+    setPage(1);
+    fetchData(1, true);
   }, [refreshTrigger]);
+
+  const fetchData = async (pageNum, reset = false) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/health/recent?page=${pageNum}&limit=10`);
+      const data = await res.json();
+
+      if (data && data.diagnoses) {
+        setHistory(prev => (reset ? data.diagnoses : [...prev, ...data.diagnoses]));
+        setHasMore(data.hasMore);
+      }
+    } catch (err) {
+      console.error("Failed to fetch history", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchData(nextPage, false);
+  };
 
   return (
     <DashboardCard title="Recent Diagnoses History" icon={History} iconColor="text-indigo-600" iconBg="bg-indigo-100 dark:bg-indigo-900/30">
-      {history.length === 0 ? (
+      {history.length === 0 && !loading ? (
         <p className="text-gray-500 text-sm text-center py-6">No recent diagnostic records found.</p>
       ) : (
-        <div className="overflow-x-auto w-full">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-slate-800 text-gray-400 dark:text-gray-500 text-[10px] uppercase tracking-wider">
-                <th className="pb-3 font-bold">Health Status</th>
-                <th className="pb-3 font-bold pl-4">Confidence</th>
-                <th className="pb-3 font-bold pl-4">Date & Time</th>
-                <th className="pb-3 font-bold pl-4">Photo</th>
-                <th className="pb-3 font-bold pl-4">GPS Location</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
-              {history.map((record) => (
-                <tr key={record._id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                  <td className="py-3">
-                    <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${record.diagnosisClass === 'healthy' ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' :
-                      record.diagnosisClass === 'fp' ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' :
-                        'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
-                      }`}>
-                      {record.diagnosisClass === 'healthy' ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-                      <span>{record.diagnosisClass === 'fp' ? 'Fibropapillomatosis' : record.diagnosisClass}</span>
-                    </span>
-                  </td>
-                  <td className="py-3 pl-4">
-                    <span className="font-bold text-gray-900 dark:text-white">
-                      {(record.confidence * 100).toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="py-3 pl-4 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
-                    {new Date(record.timestamp).toLocaleString('en-LK')}
-                  </td>
-                  <td className="py-3 pl-4">
-                    {record.imageUrl ? (
-                      <a href={record.imageUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded w-fit text-[10px] font-bold">
-                        <Image className="h-3 w-3 mr-1" /> View Image
-                      </a>
-                    ) : (
-                      <span className="text-[10px] text-gray-400 italic font-medium">No Image</span>
-                    )}
-                  </td>
-                  <td className="py-3 pl-4">
-                    {record.location ? (
-                      <div className="flex items-center text-[10px] text-gray-500 font-medium font-mono bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md inline-flex">
-                        <MapPin className="h-3 w-3 mr-1 opacity-70" />
-                        {record.location.lat.toFixed(5)}, {record.location.lng.toFixed(5)}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-gray-400 italic">Unknown Location</span>
-                    )}
-                  </td>
+        <div className="flex flex-col w-full">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-slate-800 text-gray-400 dark:text-gray-500 text-[10px] uppercase tracking-wider">
+                  <th className="pb-3 font-bold">Health Status</th>
+                  <th className="pb-3 font-bold pl-4">Confidence</th>
+                  <th className="pb-3 font-bold pl-4">Date & Time</th>
+                  <th className="pb-3 font-bold pl-4">Photo</th>
+                  <th className="pb-3 font-bold pl-4">GPS Location</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
+                {history.map((record) => (
+                  <tr key={record._id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                    <td className="py-3">
+                      <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${record.diagnosisClass === 'healthy' ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' :
+                        record.diagnosisClass === 'fp' ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' :
+                          'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                        }`}>
+                        {record.diagnosisClass === 'healthy' ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                        <span>{record.diagnosisClass === 'fp' ? 'Fibropapillomatosis' : record.diagnosisClass}</span>
+                      </span>
+                    </td>
+                    <td className="py-3 pl-4">
+                      <span className="font-bold text-gray-900 dark:text-white">
+                        {record.confidence ? (record.confidence * 100).toFixed(1) : 'N/A'}%
+                      </span>
+                    </td>
+                    <td className="py-3 pl-4 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                      {new Date(record.timestamp).toLocaleString('en-LK')}
+                    </td>
+                    <td className="py-3 pl-4">
+                      {record.imageUrl ? (
+                        <a href={record.imageUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded w-fit text-[10px] font-bold">
+                          <Image className="h-3 w-3 mr-1" /> View Image
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 italic font-medium">No Image</span>
+                      )}
+                    </td>
+                    <td className="py-3 pl-4">
+                      {record.location && record.location.lat ? (
+                        <div className="flex items-center text-[10px] text-gray-500 font-medium font-mono bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md inline-flex">
+                          <MapPin className="h-3 w-3 mr-1 opacity-70" />
+                          {record.location.lat.toFixed(5)}, {record.location.lng.toFixed(5)}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 italic">Unknown Location</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {loading && (
+            <div className="flex justify-center py-4">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
+
+          {hasMore && !loading && (
+            <div className="flex justify-center mt-6 pt-4 border-t border-gray-100 dark:border-slate-800">
+              <button
+                onClick={handleLoadMore}
+                className="px-6 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors flex items-center shadow-sm"
+              >
+                See More <Plus className="ml-2 h-3 w-3" />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </DashboardCard>

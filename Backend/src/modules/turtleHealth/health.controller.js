@@ -100,9 +100,25 @@ export const getHealthStats = async (req, res) => {
 
 export const getRecentDiagnoses = async (req, res) => {
     try {
-        const diagnoses = await TurtleHealth.find().sort({ timestamp: -1 }).limit(10);
-        res.json(diagnoses);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const total = await TurtleHealth.countDocuments();
+        const diagnoses = await TurtleHealth.find()
+            .sort({ timestamp: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        res.json({
+            diagnoses,
+            currentPage: page,
+            totalPages: Math.ceil(total / limit),
+            hasMore: page * limit < total,
+            total
+        });
     } catch (error) {
+        console.error('Error fetching recent diagnoses:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 }
