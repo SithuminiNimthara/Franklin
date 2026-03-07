@@ -1,8 +1,8 @@
-import { Waves, Activity, Video, MapPin, Droplets, FileText, User, Menu, X } from 'lucide-react';
+import { Waves, Activity, Video, MapPin, Droplets, FileText, User, Menu, X, Bell } from 'lucide-react';
 import { useState } from 'react';
 import { UserButton } from '@clerk/clerk-react';
 
-export default function Navigation({ activeTab, onTabChange }) {
+export default function Navigation({ activeTab, onTabChange, onToggleAlerts }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const tabs = [
@@ -19,26 +19,26 @@ export default function Navigation({ activeTab, onTabChange }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <div className="flex items-center space-x-8">
-           <div className="flex items-center space-x-3 group cursor-pointer">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-cyan-400 blur-md opacity-30 transition-opacity duration-300 group-hover:opacity-50"></div>
+            <div className="flex items-center space-x-3 group cursor-pointer">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-cyan-400 blur-md opacity-30 transition-opacity duration-300 group-hover:opacity-50"></div>
 
-              <img
-                src="/images/logo.png"
-                alt="Franklin Logo"
-                className="relative w-24 h-24 object-contain rounded-full"
-              />
-            </div>
+                <img
+                  src="/images/logo.png"
+                  alt="Franklin Logo"
+                  className="relative w-24 h-24 object-contain rounded-full"
+                />
+              </div>
 
-            <div className="leading-tight">
-              <span className="block font-extrabold text-xl tracking-wide text-white drop-shadow-sm">
-                FRANKLIN
-              </span>
-              <p className="text-xs font-medium italic text-blue-700 dark:text-blue-300">
-                Sea Turtle Protection System
-              </p>
+              <div className="leading-tight">
+                <span className="block font-extrabold text-xl tracking-wide text-white drop-shadow-sm">
+                  FRANKLIN
+                </span>
+                <p className="text-xs font-medium italic text-blue-700 dark:text-blue-300">
+                  Sea Turtle Protection System
+                </p>
+              </div>
             </div>
-          </div>
 
             <div className="hidden lg:flex space-x-3">
               {tabs.map((tab) => {
@@ -69,6 +69,20 @@ export default function Navigation({ activeTab, onTabChange }) {
           </div>
 
           <div className="flex items-center space-x-4">
+            <button
+              onClick={onToggleAlerts}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-2 rounded-xl transition-all duration-300 group relative overflow-hidden border border-white/20 flex items-center justify-center"
+              title="Active Alerts"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-rose-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative">
+                <Bell className="h-5 w-5 text-white drop-shadow" />
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-md animate-pulse">
+                  5
+                </span>
+              </div>
+            </button>
+
             <button
               onClick={() => onTabChange('profile')}
               className="hidden lg:block bg-white/10 hover:bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl transition-all duration-300 group relative overflow-hidden border border-white/20"
