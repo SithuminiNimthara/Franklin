@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin, Camera, History, Plus, Stethoscope } from 'lucide-react';
+import { Upload, Activity, AlertCircle, CheckCircle, Image, X, MapPin, Camera, History, Plus, Stethoscope, Map } from 'lucide-react';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
+import DiseaseHotspotMap from './DiseaseHotspotMap';
 import { API_BASE_URL, DISEASE_MODEL_URL } from '../../shared/config';
 
 /* ───────────────────────── Stats sidebar → now horizontal row ───────────────────────── */
@@ -473,6 +474,11 @@ export default function TurtleHealthPage() {
 
       {/* Stats Row */}
       <HealthStats refreshTrigger={refreshTrigger} />
+
+      {/* Disease Hotspot Map */}
+      <DashboardCard title="Disease Hotspot Map" icon={Map} iconColor="text-cyan-600" iconBg="bg-cyan-100 dark:bg-cyan-900/30">
+        <DiseaseHotspotMap refreshTrigger={refreshTrigger} />
+      </DashboardCard>
 
       {/* Care Protocols */}
       <DashboardCard title="Care Protocols" icon={AlertCircle} iconColor="text-purple-600" iconBg="bg-purple-100 dark:bg-purple-900/30">

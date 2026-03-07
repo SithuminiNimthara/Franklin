@@ -86,3 +86,24 @@ export const getRecentDiagnoses = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 }
+
+export const getHealthLocations = async (req, res) => {
+    try {
+        const records = await TurtleHealth.find(
+            { 'location.lat': { $exists: true, $ne: null } },
+            { diagnosisClass: 1, confidence: 1, location: 1, timestamp: 1, _id: 0 }
+        ).sort({ timestamp: -1 });
+
+        const locations = records.map(r => ({
+            lat: r.location.lat,
+            lng: r.location.lng,
+            class: r.diagnosisClass,
+            confidence: r.confidence,
+            timestamp: r.timestamp
+        }));
+
+        res.json(locations);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
