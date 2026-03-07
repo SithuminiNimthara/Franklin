@@ -136,6 +136,7 @@ export default function TurtleHealthPage() {
   const [showCamera, setShowCamera] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [confirmLocation, setConfirmLocation] = useState(false);
+  const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
     return () => {
@@ -204,6 +205,7 @@ export default function TurtleHealthPage() {
     setPreviewUrl(null);
     setAnalysisResult(null);
     setConfirmLocation(false);
+    setValidationError('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -211,15 +213,16 @@ export default function TurtleHealthPage() {
     if (!selectedImage) return;
 
     if (!confirmLocation) {
-      alert("Please tick the checkbox to confirm your location before identifying the health status.");
+      setValidationError("Please tick the checkbox to confirm your location before identifying the health status.");
       return;
     }
 
     if (!location) {
-      alert("Location coordinate tracking failed. Please allow location permissions or click on the map to pinpoint.");
+      setValidationError("Location coordinate tracking failed. Please allow location permissions or click on the map to pinpoint.");
       return;
     }
 
+    setValidationError("");
     setIsAnalyzing(true);
     setAnalysisResult(null);
 
@@ -336,23 +339,35 @@ export default function TurtleHealthPage() {
                 {location && <p className="text-[10px] text-gray-400 text-right">Selected: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</p>}
 
                 {/* Location Confirmation Toggle */}
-                <div className={`flex items-center space-x-3 p-3 rounded-xl border transition-all ${confirmLocation ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-900/40' : 'bg-gray-50 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700'}`}>
+                <div className={`flex items-center space-x-3 p-3 rounded-xl border transition-all ${confirmLocation ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-900/40' : validationError ? 'bg-red-50 dark:bg-red-900/10 border-red-400 dark:border-red-900/40' : 'bg-gray-50 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700'}`}>
                   <input
                     type="checkbox"
                     id="location-confirm"
                     checked={confirmLocation}
-                    onChange={(e) => setConfirmLocation(e.target.checked)}
+                    onChange={(e) => {
+                      setConfirmLocation(e.target.checked);
+                      if (e.target.checked) setValidationError("");
+                    }}
                     className="h-5 w-5 text-green-600 rounded border-gray-300 focus:ring-green-500 cursor-pointer"
                   />
                   <div className="flex flex-col">
-                    <label htmlFor="location-confirm" className="text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <label htmlFor="location-confirm" className={`text-sm font-bold cursor-pointer transition-colors ${validationError ? 'text-red-700 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
                       Confirm Location Recording
                     </label>
-                    <span className="text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer" onClick={() => setConfirmLocation(!confirmLocation)}>
+                    <span className={`text-[10px] cursor-pointer transition-colors ${validationError ? 'text-red-600 dark:text-red-500' : 'text-gray-500 dark:text-gray-400'}`} onClick={() => {
+                      setConfirmLocation(!confirmLocation);
+                      if (!confirmLocation) setValidationError("");
+                    }}>
                       I confirm that the map pinpoints the exact location of this turtle for the database.
                     </span>
                   </div>
                 </div>
+                {validationError && (
+                  <div className="flex items-start space-x-1.5 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                    <span className="text-sm font-medium text-red-500">{validationError}</span>
+                  </div>
+                )}
               </div>
 
               {previewUrl && !analysisResult && !isAnalyzing && (
