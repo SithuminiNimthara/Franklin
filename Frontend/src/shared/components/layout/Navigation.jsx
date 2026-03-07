@@ -1,9 +1,30 @@
 import { Waves, Activity, Video, MapPin, Droplets, FileText, User, Menu, X, Bell } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UserButton } from '@clerk/clerk-react';
+import { API_BASE_URL } from '../../config';
 
 export default function Navigation({ activeTab, onTabChange, onToggleAlerts }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchAlertsCount = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/hatchery/alerts`);
+        if (res.ok) {
+          const data = await res.json();
+          const pending = data.filter(a => (!a.status || a.status === 'pending')).length;
+          setUnreadCount(pending);
+        }
+      } catch (e) {
+        console.error("Failed to fetch alerts count", e);
+      }
+    };
+
+    fetchAlertsCount();
+    const interval = setInterval(fetchAlertsCount, 15000); // Check every 15s globally
+    return () => clearInterval(interval);
+  }, []);
 
   const tabs = [
     { id: 'home', label: 'Home', icon: Waves },
@@ -77,9 +98,11 @@ export default function Navigation({ activeTab, onTabChange, onToggleAlerts }) {
               <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-rose-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative">
                 <Bell className="h-5 w-5 text-white drop-shadow" />
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-md animate-pulse">
-                  5
-                </span>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-md animate-pulse">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </div>
             </button>
 
