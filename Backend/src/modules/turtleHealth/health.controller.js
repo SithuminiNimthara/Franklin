@@ -1,6 +1,7 @@
 import { TurtleHealth } from './health.model.js';
 import { HatcheryAlert } from '../hatchery/hatchery.models.js';
 import { sendAlertToActiveUsers } from '../hatchery/hatchery.alerts.controller.js';
+import { uploadToGoogleDrive } from '../../services/googleDrive.service.js';
 
 export const saveHealthDiagnosis = async (req, res) => {
     try {
@@ -8,6 +9,25 @@ export const saveHealthDiagnosis = async (req, res) => {
 
         if (typeof probabilities === 'string') probabilities = JSON.parse(probabilities);
         if (typeof location === 'string') location = JSON.parse(location);
+        if (typeof confidence === 'string') confidence = parseFloat(confidence);
+
+        // Upload image to Google Drive if a file was provided
+        if (req.file) {
+            try {
+                const timestamp = Date.now();
+                const fileName = `turtle_diagnosis_${diagnosisClass}_${timestamp}.jpg`;
+                const result = await uploadToGoogleDrive(
+                    req.file.buffer,
+                    fileName,
+                    req.file.mimetype || 'image/jpeg'
+                );
+                imageUrl = result.directLink;
+                console.log(`✅ Image uploaded to Google Drive: ${imageUrl}`);
+            } catch (driveError) {
+                console.error('⚠️ Google Drive upload failed, saving diagnosis without image:', driveError.message);
+                // Continue saving the diagnosis even if Drive upload fails
+            }
+        }
 
         const newDiagnosis = new TurtleHealth({
             diagnosisClass,
