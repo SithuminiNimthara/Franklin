@@ -13,6 +13,7 @@ import ShorelineRiskPage from "./modules/shoreline/ShorelineRiskPage";
 import HatcheryPage from "./modules/hatchery/HatcheryPage";
 import ReportsPage from "./modules/reports/ReportsPage";
 import ProfilePage from "./modules/users/ProfilePage";
+import NotificationsPage from "./modules/notifications/NotificationsPage";
 
 const ProtectedRoute = ({ children }) => {
   return (
@@ -25,8 +26,8 @@ const ProtectedRoute = ({ children }) => {
   );
 };
 
-const DashboardLayout = () => {
-  const [activeTab, setActiveTab] = useState("home");
+const DashboardLayout = ({ initialTab = "home" }) => {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const { getToken } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -59,6 +60,7 @@ const DashboardLayout = () => {
       case "hatchery": return <HatcheryPage />;
       case "reports": return <ReportsPage />;
       case "profile": return <ProfilePage />;
+      case "notifications": return <NotificationsPage />;
       default: return <HomePage onTabChange={setActiveTab} />;
     }
   };
@@ -102,7 +104,15 @@ function App() {
           path="/dashboard/*"
           element={
             <ProtectedRoute>
-              <DashboardLayout />
+              <DashboardLayout initialTab="home" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout initialTab="notifications" />
             </ProtectedRoute>
           }
         />

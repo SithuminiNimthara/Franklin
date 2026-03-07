@@ -156,11 +156,11 @@ export default function Navigation({ activeTab, onTabChange }) {
                       <button
                         onClick={() => {
                           setAlertsDropdownOpen(false);
-                          onTabChange('hatchery');
+                          window.location.href = '/notifications';
                         }}
                         className="w-full py-2.5 text-[11px] font-black text-white hover:bg-cyan-700 bg-cyan-600 shadow-lg shadow-cyan-600/20 rounded-xl transition-all uppercase tracking-widest"
                       >
-                        Action Center
+                        See All
                       </button>
                     </div>
                   </div>
