@@ -6,7 +6,6 @@ import { Bell, User as UserIcon } from "lucide-react";
 import { useTheme } from "./shared/ThemeContext";
 import { API_BASE_URL } from "./shared/config";
 import Navigation from "./shared/components/layout/Navigation";
-import AlertsPanel from "./shared/components/layout/AlertsPanel";
 import HomePage from "./modules/dashboard/HomePage";
 import TurtleHealthPage from "./modules/turtles/TurtleHealthPage";
 import NestMonitoringPage from "./modules/nests/NestMonitoringPage";
@@ -28,7 +27,6 @@ const ProtectedRoute = ({ children }) => {
 
 const DashboardLayout = () => {
   const [activeTab, setActiveTab] = useState("home");
-  const [alertsOpen, setAlertsOpen] = useState(false);
   const { getToken } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -70,14 +68,11 @@ const DashboardLayout = () => {
       <Navigation
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        onToggleAlerts={() => setAlertsOpen(!alertsOpen)}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
         {renderPage()}
       </main>
-
-      <AlertsPanel isOpen={alertsOpen} onClose={() => setAlertsOpen(false)} />
     </div>
   );
 };
