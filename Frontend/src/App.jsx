@@ -52,14 +52,14 @@ const DashboardLayout = () => {
 
   const renderPage = () => {
     switch (activeTab) {
-      case "home": return <HomePage />;
+      case "home": return <HomePage onTabChange={setActiveTab} />;
       case "health": return <TurtleHealthPage />;
       case "nests": return <NestMonitoringPage />;
       case "shoreline": return <ShorelineRiskPage />;
       case "hatchery": return <HatcheryPage />;
       case "reports": return <ReportsPage />;
       case "profile": return <ProfilePage />;
-      default: return <HomePage />;
+      default: return <HomePage onTabChange={setActiveTab} />;
     }
   };
 
