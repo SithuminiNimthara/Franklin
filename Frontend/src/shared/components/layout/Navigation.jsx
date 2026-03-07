@@ -38,8 +38,8 @@ export default function Navigation({ activeTab, onTabChange, onToggleAlerts }) {
   return (
     <nav className="bg-gradient-to-r from-cyan-500 via-teal-600 to-blue-700 shadow-xl backdrop-blur-lg border-b border-white/10 sticky top-0 z-50 transition-all duration-500">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
-          <div className="flex items-center space-x-8">
+        <div className="flex items-center justify-between h-20 gap-4 lg:gap-8">
+          <div className="flex items-center space-x-4 lg:space-x-8 overflow-hidden">
             <div className="flex items-center space-x-3 group cursor-pointer">
               <div className="relative">
                 <div className="absolute inset-0 rounded-full bg-cyan-400 blur-md opacity-30 transition-opacity duration-300 group-hover:opacity-50"></div>
