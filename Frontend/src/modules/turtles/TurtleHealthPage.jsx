@@ -314,13 +314,7 @@ export default function TurtleHealthPage() {
                       <X className="h-4 w-4" />
                     </button>
                   </div>
-                  {!analysisResult && !isAnalyzing && (
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Button onClick={analyzeImage} className="px-10 py-3 font-bold text-sm bg-blue-600 hover:bg-blue-700 text-white shadow-2xl rounded-xl">
-                        Identify Health Status
-                      </Button>
-                    </div>
-                  )}
+
                   {isAnalyzing && (
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center flex-col">
                       <Activity className="h-10 w-10 text-blue-400 animate-pulse mb-3" />
@@ -360,6 +354,14 @@ export default function TurtleHealthPage() {
                   </div>
                 </div>
               </div>
+
+              {previewUrl && !analysisResult && !isAnalyzing && (
+                <div className="flex justify-center pt-2">
+                  <Button onClick={analyzeImage} className="w-full px-10 py-3.5 font-bold text-[15px] bg-blue-600 hover:bg-blue-700 text-white shadow-xl rounded-xl transition-all">
+                    Identify Health Status
+                  </Button>
+                </div>
+              )}
 
               {analysisResult && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
