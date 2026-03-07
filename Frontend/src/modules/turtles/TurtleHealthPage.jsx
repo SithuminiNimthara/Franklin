@@ -46,6 +46,7 @@ function RecentDiagnosesTracker({ refreshTrigger }) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
   useEffect(() => {
     // Reset to page 1 on fresh load or when refreshTrigger changes
@@ -95,7 +96,7 @@ function RecentDiagnosesTracker({ refreshTrigger }) {
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
                 {history.map((record) => (
-                  <tr key={record._id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                  <tr key={record._id} onClick={() => setSelectedRecord(record)} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/20 transition-colors cursor-pointer group">
                     <td className="py-3">
                       <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${record.diagnosisClass === 'healthy' ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' :
                         record.diagnosisClass === 'fp' ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' :
@@ -115,9 +116,9 @@ function RecentDiagnosesTracker({ refreshTrigger }) {
                     </td>
                     <td className="py-3 pl-4">
                       {record.imageUrl ? (
-                        <a href={record.imageUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded w-fit text-[10px] font-bold">
+                        <div className="text-blue-500 group-hover:text-blue-700 flex items-center bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded w-fit text-[10px] font-bold">
                           <Image className="h-3 w-3 mr-1" /> View Image
-                        </a>
+                        </div>
                       ) : (
                         <span className="text-[10px] text-gray-400 italic font-medium">No Image</span>
                       )}
@@ -156,7 +157,128 @@ function RecentDiagnosesTracker({ refreshTrigger }) {
           )}
         </div>
       )}
+      <DiagnosisDetailsModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
     </DashboardCard>
+  );
+}
+
+/* ───────────────────────── Diagnosis Details Modal ───────────────────────── */
+function DiagnosisDetailsModal({ record, onClose }) {
+  if (!record) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
+
+      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-800 w-full max-w-2xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className="sticky top-0 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-100 dark:border-slate-800 p-5 flex items-center justify-between rounded-t-2xl shrink-0">
+          <div className="flex items-center space-x-3">
+            <div className={`p-2.5 rounded-xl text-white shadow-lg ${record.diagnosisClass === 'healthy' ? 'bg-gradient-to-br from-green-500 to-emerald-500' : record.diagnosisClass === 'fp' ? 'bg-gradient-to-br from-red-500 to-rose-500' : 'bg-gradient-to-br from-amber-500 to-orange-500'}`}>
+              {record.diagnosisClass === 'healthy' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-gray-900 dark:text-white uppercase">Diagnostic Record</h2>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium uppercase tracking-widest">
+                {new Date(record.timestamp).toLocaleString('en-LK')}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-all">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-5 pb-8 space-y-5 overflow-y-auto custom-scrollbar">
+          {record.imageUrl && (
+            <div className="relative rounded-2xl overflow-hidden shadow-xl bg-gray-100 dark:bg-gray-800 border border-gray-100 dark:border-slate-800 group flex items-center justify-center" style={{ minHeight: '200px' }}>
+              <img
+                src={record.imageUrl}
+                alt="Diagnosis"
+                className="w-full max-h-72 object-contain relative z-10"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  if (record.imageUrl.includes('drive.google.com/uc')) {
+                    try {
+                      const urlObj = new URL(record.imageUrl);
+                      const fileId = urlObj.searchParams.get('id');
+                      if (fileId && !e.target.dataset.triedFallback) {
+                        e.target.dataset.triedFallback = 'true';
+                        e.target.src = `https://lh3.googleusercontent.com/d/${fileId}`;
+                        return;
+                      }
+                    } catch (err) {
+                      console.error("URL parse error", err);
+                    }
+                  }
+                  e.target.style.display = 'none';
+                  if (e.target.nextElementSibling) {
+                    e.target.nextElementSibling.style.display = 'flex';
+                  }
+                }}
+              />
+              <div className="absolute inset-0 hidden flex-col items-center justify-center text-gray-400 z-0 bg-gray-100 dark:bg-slate-800">
+                <Image className="h-10 w-10 mb-2 opacity-30" />
+                <span className="text-xs uppercase font-bold tracking-widest">Image preview protected</span>
+                <a href={record.imageUrl} target="_blank" rel="noreferrer" className="mt-3 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-md">
+                  Open in Google Drive
+                </a>
+              </div>
+            </div>
+          )}
+
+          <div className={`border-2 rounded-2xl p-5 ${record.diagnosisClass === 'healthy' ? 'bg-green-50/50 dark:bg-green-900/10 border-green-100 dark:border-green-900/20' : record.diagnosisClass === 'fp' ? 'bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/20' : 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase">Primary Diagnosis</p>
+                <h3 className="text-xl font-black dark:text-white uppercase leading-none mt-1">{record.diagnosisClass === 'fp' ? 'Fibropapillomatosis (FP)' : record.diagnosisClass}</h3>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-gray-500 uppercase">Confidence</p>
+                <span className="text-lg font-black dark:text-white mt-1">{(record.confidence * 100).toFixed(1)}%</span>
+              </div>
+            </div>
+
+            {record.probabilities && Object.keys(record.probabilities).length > 0 && (
+              <div className="grid grid-cols-3 gap-3">
+                {Object.entries(record.probabilities).map(([key, val]) => (
+                  <div key={key} className="bg-white/40 dark:bg-slate-900/40 p-3 rounded-xl border border-white/20 dark:border-slate-800">
+                    <div className="flex justify-between text-[10px] mb-1.5 font-bold uppercase tracking-tighter">
+                      <span className="text-gray-600 dark:text-gray-400">{key}</span>
+                      <span className="text-gray-900 dark:text-white">{(val * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                      <div className={`h-full transition-all duration-700 ${key === 'healthy' ? 'bg-green-500' : key === 'fp' ? 'bg-red-500' : 'bg-amber-500'}`} style={{ width: `${val * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-700">
+              <div className="flex items-center space-x-2 mb-2">
+                <MapPin className="h-4 w-4 text-blue-500" />
+                <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest">GPS Coordinates</p>
+              </div>
+              {record.location && record.location.lat ? (
+                <p className="font-mono text-sm dark:text-white">{record.location.lat.toFixed(5)}, {record.location.lng.toFixed(5)}</p>
+              ) : (
+                <p className="text-sm dark:text-gray-400 italic">Location unrecorded</p>
+              )}
+            </div>
+            <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-700">
+              <div className="flex items-center space-x-2 mb-2">
+                <History className="h-4 w-4 text-purple-500" />
+                <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest">System Notes</p>
+              </div>
+              <p className="text-sm dark:text-white">{record.notes || <span className="italic text-gray-400">Auto-saved from diagnostics</span>}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
