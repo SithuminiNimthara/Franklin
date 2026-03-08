@@ -92,6 +92,7 @@ export default function NestMonitoringPage() {
       confidence
     };
 
+    console.log(`🎁 TRIGGERING ALERT: Nest #${nest.nestNo} - ${threatType} (Conf: ${confidence})`);
     setActiveAlerts(prev => {
       if (prev.some(a => a.nestNo === alertData.nestNo && a.threatType === alertData.threatType)) return prev;
       return [alertData, ...prev];
@@ -100,7 +101,7 @@ export default function NestMonitoringPage() {
     playSiren();
 
     try {
-      await fetch(`${API_BASE_URL}/api/alerts/email`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,8 +115,9 @@ export default function NestMonitoringPage() {
           confidence
         })
       });
+      console.log("📧 Email alert status:", response.status);
     } catch (e) {
-      console.error("Failed to send email alert", e);
+      console.error("❌ Failed to send email alert", e);
     }
 
     setNests(prev => prev.map(n => n.nestNo === nest.nestNo ? { ...n, status: 'danger' } : n));
@@ -330,7 +332,9 @@ export default function NestMonitoringPage() {
         type: d.type,
         x: d.location?.coordinates?.x ?? 0,
         y: d.location?.coordinates?.y ?? 0,
-        label: `${d.type.toUpperCase()} ${(d.confidence * 100).toFixed(0)}%`,
+        label: d.details?.includes('AI DETECTED NESTER')
+          ? `POTENTIAL NEST (AI)`
+          : `${d.type.toUpperCase()} ${(d.confidence * 100).toFixed(0)}%`,
         status: 'safe'
       }))
     ];
@@ -338,6 +342,10 @@ export default function NestMonitoringPage() {
   }, [liveDetections, nests, simulationData]);
 
   useEffect(() => {
+    // Only use wall-clock cleanup if we are NOT in simulation mode.
+    // Simulations manage their own cleanup inside handleTimeUpdate using video clock.
+    if (simulationData) return;
+
     const cleanupInterval = setInterval(() => {
       const now = Date.now() / 1000;
       const currentTracker = { ...threatTrackerRef.current };
@@ -345,7 +353,8 @@ export default function NestMonitoringPage() {
 
       Object.keys(currentTracker).forEach(nestNo => {
         Object.keys(currentTracker[nestNo]).forEach(type => {
-          if (now - currentTracker[nestNo][type].last > gracePeriod) {
+          // Double check these are wall-clock trackers (start > 1000000 approx)
+          if (currentTracker[nestNo][type].start > 1000000 && now - currentTracker[nestNo][type].last > gracePeriod) {
             if (currentTracker[nestNo][type].alerted) {
               const otherThreatsAlerted = Object.keys(currentTracker[nestNo]).some(t => t !== type && currentTracker[nestNo][t].alerted);
               if (!otherThreatsAlerted) {
@@ -363,7 +372,7 @@ export default function NestMonitoringPage() {
     }, 2000);
 
     return () => clearInterval(cleanupInterval);
-  }, [showDangerModal, gracePeriod, stopSiren]);
+  }, [showDangerModal, gracePeriod, stopSiren, simulationData]);
 
   useEffect(() => {
     fetchHistory();

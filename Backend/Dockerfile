@@ -6,7 +6,7 @@ WORKDIR /usr/src/app
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN node src/server.js
+RUN npm install
 
 COPY . .
 

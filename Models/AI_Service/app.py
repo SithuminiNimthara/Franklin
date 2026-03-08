@@ -303,8 +303,9 @@ def stream_unified(source: str):
             return
 
         frame_count = 0
-        process_every = 2 # Process every 2nd frame for AI to reduce CPU load
+        process_every = 3 # Process every 3rd frame for AI to reduce CPU load
         last_annotated = None
+        target_size = (640, 360) # Standard 16:9 for faster inference
 
         while cap.isOpened():
             success, frame = cap.read()
@@ -323,14 +324,15 @@ def stream_unified(source: str):
             
             # AI Inference
             if frame_count % process_every == 0 or last_annotated is None:
-                # Resize for faster processing if needed
-                # small_frame = cv2.resize(frame, (640, 480))
-                last_annotated, _ = unified.process_frame(frame, source_id=source)
+                # Resize for MUCH faster processing
+                small_frame = cv2.resize(frame, target_size)
+                last_annotated, _ = unified.process_frame(small_frame, source_id=source)
             
             # Use annotated frame for streaming
             display_frame = last_annotated if last_annotated is not None else frame
 
-            ok, buf = cv2.imencode(".jpg", display_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+            # Encode with slightly lower quality for faster transmission
+            ok, buf = cv2.imencode(".jpg", display_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
             if not ok: continue
 
             yield (
@@ -340,7 +342,8 @@ def stream_unified(source: str):
 
             # Small delay to prevent CPU spinning 100% on empty loops
             if source.startswith("rtsp://"):
-                time.sleep(0.01)
+                # Reduced sleep for better responsiveness
+                time.sleep(0.005)
 
         cap.release()
         print(f"🛑 Unified stream stopped for {source}")

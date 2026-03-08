@@ -21,6 +21,7 @@ services:
         # Pass required build-time arguments. Adjust values for staging/prod as needed.
         VITE_API_BASE_URL: http://localhost:5002
         VITE_AI_SERVICE_URL: http://localhost:8000
+        VITE_CLERK_PUBLISHABLE_KEY: pk_test_cHVtcGVkLWNvd2JpcmQtNzQuY2xlcmsuYWNjb3VudHMuZGV2JA
     ports:
       - "5173:80"
     restart: unless-stopped
