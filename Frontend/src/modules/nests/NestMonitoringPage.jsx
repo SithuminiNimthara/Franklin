@@ -48,8 +48,15 @@ export default function NestMonitoringPage() {
   const RADIUS_THRESHOLD = 15;
 
   const streamUrl = activeCamera
-    ? `${API_BASE_URL}/streams/${activeCamera._id}/stream.m3u8`
+    ? `${API_BASE_URL.replace(/\/api$/, '')}/streams/${activeCamera._id}/stream.m3u8`
     : null;
+
+  useEffect(() => {
+    // Clear simulation if we switch to a live camera
+    if (activeCamera && simulationData) {
+      setSimulationData(null);
+    }
+  }, [activeCamera]);
 
   useEffect(() => {
     const socket = io(API_BASE_URL);
@@ -374,6 +381,12 @@ export default function NestMonitoringPage() {
                     <div>
                       <p className="font-bold dark:text-white uppercase text-xs">{item.type} Seen</p>
                       <p className="text-[10px] text-gray-500 dark:text-gray-400">{item.location?.zone} • Confidence: {(item.confidence * 100).toFixed(0)}%</p>
+                      {(item.location?.coordinates?.x != null && item.location?.coordinates?.y != null) && (
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-0.5 mt-0.5">
+                          <MapPin className="h-2.5 w-2.5 inline-block" />
+                          {item.location.coordinates.x.toFixed(1)}, {item.location.coordinates.y.toFixed(1)}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="text-right text-[10px] text-gray-400 dark:text-gray-500">

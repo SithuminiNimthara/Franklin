@@ -50,25 +50,41 @@ class StreamingService {
         const isRtsp = rtspUrl.startsWith('rtsp://');
         const ffmpegArgs = [];
 
-        if (isRtsp) {
+        // For local files, read at native frame rate to simulate a stream
+        if (!isRtsp) {
+            ffmpegArgs.push('-re');
+        } else {
             ffmpegArgs.push('-rtsp_transport', 'tcp');
         }
 
+        // Use forward slashes for FFmpeg paths even on Windows
+        const normalizedInput = rtspUrl.replace(/\\/g, '/');
+        const normalizedSegmentPattern = path.join(cameraDir, 'p%d.ts').replace(/\\/g, '/');
+        const normalizedPlaylist = playlistPath.replace(/\\/g, '/');
+
         ffmpegArgs.push(
-            '-i', rtspUrl,
+            '-i', normalizedInput,
             '-c:v', 'libx264',
-            '-preset', 'ultrafast',
+            '-profile:v', 'baseline',
+            '-level', '3.0',
+            '-preset', 'fast',
             '-tune', 'zerolatency',
-            '-c:a', 'none',
+            '-vf', 'scale=-2:720,format=yuv420p',
+            '-g', '30',
+            '-sc_threshold', '0',
+            '-c:a', 'aac',
+            '-ar', '44100',
+            '-ac', '2',
+            '-b:a', '128k',
             '-f', 'hls',
             '-hls_time', '2',
-            '-hls_list_size', '3',
+            '-hls_list_size', '5',
             '-hls_flags', 'delete_segments',
-            '-hls_segment_filename', path.join(cameraDir, 'seg_%d.ts'),
-            playlistPath
+            '-hls_segment_filename', normalizedSegmentPattern,
+            normalizedPlaylist
         );
 
-        console.log(`[Camera ${id}] Source: ${rtspUrl}`);
+        console.log(`[Camera ${id}] Source: ${normalizedInput}`);
         console.log(`[Camera ${id}] Executing: ${ffmpegPath} ${ffmpegArgs.join(' ')}`);
         const process = spawn(ffmpegPath, ffmpegArgs);
 

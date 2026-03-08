@@ -71,6 +71,10 @@ app.use(
         "Content-Length, Content-Range",
       );
 
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+
       // Ensure correct MIME types for HLS
       if (filePath.endsWith(".m3u8")) {
         res.setHeader("Content-Type", "application/vnd.apple.mpegurl");

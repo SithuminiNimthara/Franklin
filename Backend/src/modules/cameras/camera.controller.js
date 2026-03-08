@@ -9,7 +9,7 @@ const generateRtspUrl = (ip) => {
     if (trimmed === '127.0.0.1' || trimmed.toLowerCase() === 'localhost') {
         // Use a test video path for local testing since there's likely no RTSP camera at 127.0.0.1
         const projectRoot = process.cwd();
-        return path.join(projectRoot, 'Models', 'AI_Service', 'test_videos', 'tankA.mov');
+        return path.join(projectRoot, '..', 'Models', 'AI_Service', 'test_videos', 'tankA.mov');
     }
     return `rtsp://admin:EDSNNP@${trimmed}:554/Streaming/Channels/101`;
 };

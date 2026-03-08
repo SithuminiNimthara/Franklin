@@ -1,8 +1,0 @@
-﻿177af6f chore: Add `tmp_gitlog.txt` for temporary git log output.
-ac2b9c9 feat: create pkaya.txt
-85d08c6 feat: Implement turtle health diagnosis functionality with image upload to Google Drive, backend API, and a dedicated frontend page.
-845e6f0 Merge branch 'main' of https://github.com/MigaraDenuwan/Franklin
-289d2c6 feat: Implement a new Turtle Health Page with image upload/capture, AI-powered disease diagnosis, location tracking, and display of health statistics and recent diagnoses.
-e67b242 feat: Set up initial Docker containerization for all services and a basic CI/CD pipeline.
-6604a27 Merge pull request #26 from MigaraDenuwan/final
-cf142c8 Merge pull request #25 from MigaraDenuwan/main

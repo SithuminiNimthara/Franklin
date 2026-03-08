@@ -57,7 +57,7 @@ export default function HomePage({ onTabChange }) {
   };
 
   const streamUrl = mainCamera
-    ? `${API_BASE}/streams/${mainCamera._id}/stream.m3u8`
+    ? `${API_BASE_URL.replace(/\/api$/, '')}/streams/${mainCamera._id}/stream.m3u8`
     : null;
 
   return (
@@ -189,11 +189,18 @@ export default function HomePage({ onTabChange }) {
               </div>
             </div>
 
-            <div className="mt-6">
+            {/* <div className="mt-6">
               <Button className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 border-none shadow-lg shadow-teal-500/25 text-white font-bold tracking-widest uppercase group py-4">
                 Open Live Intelligence <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Button>
-            </div>
+            </div> */}
+            <Button
+              variant="secondary"
+              className="w-full mt-6 text-xs font-bold uppercase tracking-widest group hover:border-slate-300 dark:hover:border-slate-600 py-3.5"
+              onClick={() => onTabChange && onTabChange('nests')}
+            >
+              Open Live Intelligence <ArrowRight className="w-4 h-4 ml-1.5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+            </Button>
           </DashboardCard>
 
         </div>
