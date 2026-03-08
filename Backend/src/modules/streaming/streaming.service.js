@@ -78,6 +78,7 @@ class StreamingService {
             '-tune', 'zerolatency',
             '-vf', 'scale=-2:480,format=yuv420p',
             '-g', '30',
+            '-force_key_frames', 'expr:gte(t,n_forced*1)',
             '-sc_threshold', '0',
             '-c:a', 'aac',
             '-ar', '44100',
@@ -86,7 +87,8 @@ class StreamingService {
             '-f', 'hls',
             '-hls_time', '1',
             '-hls_list_size', '3',
-            '-hls_flags', 'delete_segments+independent_segments',
+            '-hls_flags', 'delete_segments+independent_segments+omit_endlist+discont_start',
+            '-hls_allow_cache', '0',
             '-hls_segment_filename', `file:${normalizedSegmentPattern}`,
             `file:${normalizedPlaylist}`
         );

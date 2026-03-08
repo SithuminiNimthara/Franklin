@@ -60,15 +60,19 @@ export default function HlsPlayer({ src, className }) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
-        backBufferLength: 30,
-        manifestLoadingTimeOut: 15000,
+        backBufferLength: 0,
+        maxBufferLength: 5,
+        maxMaxBufferLength: 10,
+        manifestLoadingTimeOut: 10000,
         manifestLoadingMaxRetry: 10,
         manifestLoadingRetryDelay: 500,
-        fragLoadingTimeOut: 15000,
-        liveSyncDurationCount: 1.5,
-        liveMaxLatencyDurationCount: 3,
+        fragLoadingTimeOut: 10000,
+        liveSyncDurationCount: 1,
+        liveMaxLatencyDurationCount: 2,
+        maxLiveSyncPlaybackRate: 1.1,
         autoStartLoad: true,
-        driftThreshold: 0.1
+        driftThreshold: 0.1,
+        enableLowLatencyCorrection: true
       })
 
       hlsRef.current = hls
@@ -76,7 +80,7 @@ export default function HlsPlayer({ src, className }) {
       hls.attachMedia(video)
 
       hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-        console.log(`[HlsPlayer] Manifest parsed for ${src}. Audio tracks:`, hls.audioTracks.length)
+        console.log(`[HlsPlayer] Real-time session started: ${src}`)
         setHasAudio(hls.audioTracks.length > 0)
 
         video.muted = isMuted
@@ -85,14 +89,13 @@ export default function HlsPlayer({ src, className }) {
         const playPromise = video.play()
         if (playPromise !== undefined) {
           playPromise.then(() => {
-            console.log("[HlsPlayer] Real-time playback started")
+            console.log("[HlsPlayer] Playback active")
             setStatus("playing")
             setRetryCount(0)
 
-            // Force jump to live edge if we are lagging
-            if (video.duration > 0 && video.duration - video.currentTime > 5) {
-              console.log("[HlsPlayer] Jumping to live edge")
-              video.currentTime = video.duration - 1
+            // Initial sync to live edge
+            if (video.duration > 0) {
+              video.currentTime = video.duration - 0.5
             }
           }).catch(err => {
             console.warn("[HlsPlayer] Autoplay logic:", err.message)
@@ -102,13 +105,17 @@ export default function HlsPlayer({ src, className }) {
         }
       })
 
-      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (event, data) => {
-        setHasAudio(data.audioTracks.length > 0)
+      // Lag detection & Catch-up mechanism
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        if (video.duration > 0 && (video.duration - video.currentTime > 2.5)) {
+          console.warn(`[HlsPlayer] Lag detected (${(video.duration - video.currentTime).toFixed(1)}s). Catching up...`)
+          video.currentTime = video.duration - 0.8
+        }
       })
 
       hls.on(Hls.Events.ERROR, (event, data) => {
-        console.warn(`[HlsPlayer] HLS Error: ${data.details}`, data)
         if (data.fatal) {
+          console.error(`[HlsPlayer] Fatal ${data.type}: ${data.details}`)
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               hls.startLoad()
@@ -118,7 +125,7 @@ export default function HlsPlayer({ src, className }) {
               break
             default:
               setStatus("reconnecting")
-              const wait = Math.min(1000 * Math.pow(2, retryCount), 15000)
+              const wait = Math.min(500 * Math.pow(2, retryCount), 10000)
               setTimeout(() => {
                 setRetryCount(prev => prev + 1)
                 initHls()

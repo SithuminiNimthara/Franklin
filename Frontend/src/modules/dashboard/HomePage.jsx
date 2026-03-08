@@ -36,8 +36,11 @@ export default function HomePage({ onTabChange }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.success) {
-        const main = res.data.data.find(c => c.isMain && c.isEnabled) || res.data.data[0];
-        setMainCamera(main);
+        // Strictly find "Main Camera" by flag or name
+        const main = res.data.data.find(c =>
+          (c.isMain || c.name.toLowerCase() === 'main camera') && c.isEnabled
+        );
+        setMainCamera(main || null);
       }
     } catch (error) {
       console.error('[HomePage] Camera fetch error:', error);
@@ -122,10 +125,16 @@ export default function HomePage({ onTabChange }) {
             iconBg="bg-teal-500/10 dark:bg-teal-500/20"
             right={
               mainCamera && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold bg-teal-500/10 text-teal-700 dark:text-teal-300 px-3 py-1.5 rounded-full uppercase tracking-wider backdrop-blur-sm border border-teal-500/20 shadow-sm">
-                    Live Feed
-                  </span>
+                <div className="flex items-center gap-3">
+                  <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{mainCamera.ipAddress}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold bg-teal-500/10 text-teal-700 dark:text-teal-300 px-3 py-1.5 rounded-full uppercase tracking-wider backdrop-blur-sm border border-teal-500/20 shadow-sm">
+                      Live Feed
+                    </span>
+                  </div>
                 </div>
               )
             }
