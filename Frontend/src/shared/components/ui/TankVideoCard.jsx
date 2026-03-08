@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertCircle, ShieldCheck, Maximize2, X } from "lucide-react";
 import { getStreamUrl, getHatcheryDataUrl } from "../../config";
-import { getStreamUrl, getHatcheryDataUrl } from "../../config";
 
 export default function TankVideoCard({ tankId, tankLabel }) {
   const [isZoomed, setIsZoomed] = useState(false);
@@ -21,14 +20,13 @@ export default function TankVideoCard({ tankId, tankLabel }) {
             status: "Offline",
             health: "Unknown",
             species: "Unknown",
-          })
+          }),
         );
     }, 1000);
     return () => clearInterval(interval);
   }, [tankId]);
 
-  const HealthIcon =
-    data.health === "Critical" ? AlertCircle : ShieldCheck;
+  const HealthIcon = data.health === "Critical" ? AlertCircle : ShieldCheck;
 
   return (
     <>
