@@ -59,11 +59,16 @@ export default function HlsPlayer({ src, className }) {
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
-        backBufferLength: 60,
-        manifestLoadingTimeOut: 20000,
-        fragLoadingTimeOut: 20000,
-        liveSyncDurationCount: 3,
-        autoStartLoad: true
+        lowLatencyMode: true,
+        backBufferLength: 30,
+        manifestLoadingTimeOut: 15000,
+        manifestLoadingMaxRetry: 10,
+        manifestLoadingRetryDelay: 500,
+        fragLoadingTimeOut: 15000,
+        liveSyncDurationCount: 1.5,
+        liveMaxLatencyDurationCount: 3,
+        autoStartLoad: true,
+        driftThreshold: 0.1
       })
 
       hlsRef.current = hls
@@ -80,11 +85,17 @@ export default function HlsPlayer({ src, className }) {
         const playPromise = video.play()
         if (playPromise !== undefined) {
           playPromise.then(() => {
-            console.log("[HlsPlayer] Playback started successfully")
+            console.log("[HlsPlayer] Real-time playback started")
             setStatus("playing")
             setRetryCount(0)
+
+            // Force jump to live edge if we are lagging
+            if (video.duration > 0 && video.duration - video.currentTime > 5) {
+              console.log("[HlsPlayer] Jumping to live edge")
+              video.currentTime = video.duration - 1
+            }
           }).catch(err => {
-            console.warn("[HlsPlayer] Autoplay blocked or failed:", err.message)
+            console.warn("[HlsPlayer] Autoplay logic:", err.message)
             setStatus("playing")
             setIsPlaying(false)
           })
