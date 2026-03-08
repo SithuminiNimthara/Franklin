@@ -3,6 +3,7 @@ import shutil
 import uuid
 import numpy as np
 import cv2
+import time
 import asyncio
 from contextlib import asynccontextmanager
 
@@ -22,8 +23,8 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Environment variables (set in Render dashboard)
-NODE_BACKEND_URL = os.environ.get("NODE_BACKEND_URL", "").strip()
-AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "").strip()
+NODE_BACKEND_URL = os.environ.get("NODE_BACKEND_URL", "http://localhost:5002").strip()
+AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://localhost:8000").strip()
 
 # Fix Ultralytics config permission warnings (Render)
 os.environ.setdefault("YOLO_CONFIG_DIR", "/tmp/Ultralytics")
@@ -284,6 +285,67 @@ async def analyze_unified(request: Request, file: UploadFile = File(...)):
         return result
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@app.get("/ai/unified/stream")
+def stream_unified(source: str):
+    """
+    Stream a live camera or remote video through UnifiedProcessor.
+    Uses frame-skipping to maintain real-time performance.
+    """
+    unified = get_unified()
+
+    def iter_frames():
+        print(f"📹 Starting unified stream for {source}")
+        cap = cv2.VideoCapture(source)
+        if not cap.isOpened():
+            print(f"❌ Failed to open video source: {source}")
+            return
+
+        frame_count = 0
+        process_every = 2 # Process every 2nd frame for AI to reduce CPU load
+        last_annotated = None
+
+        while cap.isOpened():
+            success, frame = cap.read()
+            if not success:
+                # If it's a file, loop it. 
+                if not source.startswith("rtsp://"):
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    success, frame = cap.read()
+                    if not success: break
+                else:
+                    # For RTSP, wait a bit and retry OR break if persistent
+                    time.sleep(1)
+                    continue
+
+            frame_count += 1
+            
+            # AI Inference
+            if frame_count % process_every == 0 or last_annotated is None:
+                # Resize for faster processing if needed
+                # small_frame = cv2.resize(frame, (640, 480))
+                last_annotated, _ = unified.process_frame(frame, source_id=source)
+            
+            # Use annotated frame for streaming
+            display_frame = last_annotated if last_annotated is not None else frame
+
+            ok, buf = cv2.imencode(".jpg", display_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+            if not ok: continue
+
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
+            )
+
+            # Small delay to prevent CPU spinning 100% on empty loops
+            if source.startswith("rtsp://"):
+                time.sleep(0.01)
+
+        cap.release()
+        print(f"🛑 Unified stream stopped for {source}")
+
+    return StreamingResponse(iter_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 
 # ---------------------------

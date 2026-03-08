@@ -9,7 +9,8 @@ import Button from '../../shared/components/ui/Button';
 import SimulationUpload from './SimulationUpload';
 import { useUser } from '@clerk/clerk-react';
 import CameraSelector from '../../shared/components/media/CameraSelector';
-import { API_BASE_URL } from '../../shared/config';
+import { API_BASE_URL, UNIFIED_MODEL_URL } from '../../shared/config';
+import { Brain } from 'lucide-react';
 
 const MOCK_NESTS = [
   { nestNo: 'N001', x: 25, y: 50, locationName: 'Zone A', createdAt: '2026-01-26 10:00:00', status: 'safe' },
@@ -23,11 +24,13 @@ export default function NestMonitoringPage() {
   const { user, isLoaded: userLoaded } = useUser();
   const [simulationData, setSimulationData] = useState(null);
   const [activeCamera, setActiveCamera] = useState(null);
-  const [simulationEntities, setSimulationEntities] = useState(null);
+  const [simulationEntities, setSimulationEntities] = useState([]);
   const [detectionHistory, setDetectionHistory] = useState([]);
   const [activeAlerts, setActiveAlerts] = useState([]);
   const [showDangerModal, setShowDangerModal] = useState(null);
   const [isSirenMuted, setIsSirenMuted] = useState(false);
+  const [isAiMode, setIsAiMode] = useState(false);
+  const [liveDetections, setLiveDetections] = useState([]);
 
   const userData = userLoaded && user ? {
     name: user.fullName || 'User',
@@ -48,21 +51,12 @@ export default function NestMonitoringPage() {
   const RADIUS_THRESHOLD = 15;
 
   const streamUrl = activeCamera
-    ? `${API_BASE_URL.replace(/\/api$/, '')}/streams/${activeCamera._id}/stream.m3u8`
+    ? isAiMode
+      ? `${UNIFIED_MODEL_URL}/ai/unified/stream?source=${activeCamera.rtspUrl}`
+      : `${API_BASE_URL.replace(/\/api$/, '')}/streams/${activeCamera._id}/stream.m3u8`
     : null;
 
-  useEffect(() => {
-    // Clear simulation if we switch to a live camera
-    if (activeCamera && simulationData) {
-      setSimulationData(null);
-    }
-  }, [activeCamera]);
-
-  useEffect(() => {
-    const socket = io(API_BASE_URL);
-    socket.on('danger_alert', (data) => console.log('Central Server Alert:', data));
-    return () => socket.disconnect();
-  }, []);
+  // --- HELPER FUNCTIONS ---
 
   const playSiren = useCallback(() => {
     if (sirenRef.current && !isSirenMuted) {
@@ -85,10 +79,6 @@ export default function NestMonitoringPage() {
       .then(res => { if (res.success) setDetectionHistory(res.data); })
       .catch(err => console.error("Failed to load history", err));
   };
-
-  useEffect(() => {
-    fetchHistory();
-  }, [simulationData]);
 
   const triggerAlerts = async (nest, threatType, startTime, confidence) => {
     const timestamp = new Date();
@@ -129,6 +119,43 @@ export default function NestMonitoringPage() {
     }
 
     setNests(prev => prev.map(n => n.nestNo === nest.nestNo ? { ...n, status: 'danger' } : n));
+  };
+
+  const processSingleLiveDetection = (det) => {
+    if (det.type !== 'predator' && det.type !== 'human') return;
+
+    let nearestNest = null;
+    let minDist = Infinity;
+    nests.forEach(nest => {
+      const dist = Math.sqrt(Math.pow(nest.x - det.location.coordinates.x, 2) + Math.pow(nest.y - det.location.coordinates.y, 2));
+      if (dist < RADIUS_THRESHOLD && dist < minDist) {
+        minDist = dist;
+        nearestNest = nest;
+      }
+    });
+
+    if (nearestNest) {
+      const currentTracker = { ...threatTrackerRef.current };
+      if (!currentTracker[nearestNest.nestNo]) currentTracker[nearestNest.nestNo] = {};
+
+      const now = Date.now() / 1000;
+      if (!currentTracker[nearestNest.nestNo][det.type]) {
+        currentTracker[nearestNest.nestNo][det.type] = {
+          start: now,
+          last: now,
+          alerted: false,
+          confidence: det.confidence
+        };
+      } else {
+        currentTracker[nearestNest.nestNo][det.type].last = now;
+        const duration = now - currentTracker[nearestNest.nestNo][det.type].start;
+        if (duration >= threatSeconds && !currentTracker[nearestNest.nestNo][det.type].alerted) {
+          currentTracker[nearestNest.nestNo][det.type].alerted = true;
+          triggerAlerts(nearestNest, det.type, currentTracker[nearestNest.nestNo][det.type].start, det.confidence);
+        }
+      }
+      threatTrackerRef.current = currentTracker;
+    }
   };
 
   const handleTimeUpdate = () => {
@@ -212,6 +239,136 @@ export default function NestMonitoringPage() {
     }
   };
 
+  // --- EFFECTS ---
+
+  useEffect(() => {
+    // Clear simulation if we switch to a live camera
+    if (activeCamera && simulationData) {
+      setSimulationData(null);
+    }
+    // Reset tracker and nests on camera change
+    threatTrackerRef.current = {};
+    setNests(MOCK_NESTS);
+    setLiveDetections([]);
+  }, [activeCamera]);
+
+  useEffect(() => {
+    const socket = io(API_BASE_URL);
+
+    socket.on('danger_alert', (data) => {
+      console.log('Central Server Alert:', data);
+    });
+
+    socket.on('new_detection', (det) => {
+      // Robust check: match rtspUrl OR use det.isLive if camera selected
+      const isRelevant = activeCamera && (
+        det.videoSource === activeCamera.rtspUrl ||
+        det.videoSource?.includes(activeCamera._id)
+      );
+
+      if (isRelevant) {
+        setLiveDetections(prev => {
+          const now = new Date();
+          // Increase TTL to 5 seconds to compensate for stream lag
+          const filtered = prev.filter(p => (now - new Date(p.timestamp)) < 5000);
+
+          // Deduplicate based on type and approximate location
+          const exists = filtered.find(p => p.type === det.type);
+          if (exists) {
+            const dx = Math.abs(exists.location.coordinates.x - det.location.coordinates.x);
+            const dy = Math.abs(exists.location.coordinates.y - det.location.coordinates.y);
+            if (dx < 5 && dy < 5) {
+              // Update existing
+              return prev.map(p => p._id === exists._id ? det : p);
+            }
+          }
+
+          return [...filtered, det];
+        });
+        setDetectionHistory(prev => {
+          if (prev.some(h => h._id === det._id)) return prev;
+          return [det, ...prev].slice(0, 50);
+        });
+
+        // Process this detection for threats immediately
+        processSingleLiveDetection(det);
+      }
+    });
+
+    return () => socket.disconnect();
+  }, [activeCamera]);
+
+  useEffect(() => {
+    if (!activeCamera) return;
+
+    const interval = setInterval(() => {
+      setLiveDetections(prev => {
+        const now = new Date();
+        return prev.filter(p => (now - new Date(p.timestamp)) < 5000);
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeCamera]);
+
+  useEffect(() => {
+    // If simulation is running, it manages setSimulationEntities via handleTimeUpdate
+    if (simulationData) return;
+
+    // Use a default map with nests if nothing else is happening
+    const entities = [
+      ...nests.map(n => ({
+        id: n.nestNo,
+        type: 'nest',
+        x: n.x,
+        y: n.y,
+        label: `Nest #${n.nestNo} (${n.locationName})`,
+        status: n.status
+      })),
+      ...liveDetections.map((d, idx) => ({
+        id: `live-${idx}-${d.type}`,
+        type: d.type,
+        x: d.location?.coordinates?.x ?? 0,
+        y: d.location?.coordinates?.y ?? 0,
+        label: `${d.type.toUpperCase()} ${(d.confidence * 100).toFixed(0)}%`,
+        status: 'safe'
+      }))
+    ];
+    setSimulationEntities(entities);
+  }, [liveDetections, nests, simulationData]);
+
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now() / 1000;
+      const currentTracker = { ...threatTrackerRef.current };
+      let changed = false;
+
+      Object.keys(currentTracker).forEach(nestNo => {
+        Object.keys(currentTracker[nestNo]).forEach(type => {
+          if (now - currentTracker[nestNo][type].last > gracePeriod) {
+            if (currentTracker[nestNo][type].alerted) {
+              const otherThreatsAlerted = Object.keys(currentTracker[nestNo]).some(t => t !== type && currentTracker[nestNo][t].alerted);
+              if (!otherThreatsAlerted) {
+                setNests(prev => prev.map(n => n.nestNo === nestNo ? { ...n, status: 'safe' } : n));
+                if (showDangerModal && showDangerModal.nestNo === nestNo && showDangerModal.threatType === type) stopSiren();
+              }
+            }
+            delete currentTracker[nestNo][type];
+            changed = true;
+          }
+        });
+      });
+
+      if (changed) threatTrackerRef.current = currentTracker;
+    }, 2000);
+
+    return () => clearInterval(cleanupInterval);
+  }, [showDangerModal, gracePeriod, stopSiren]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [simulationData]);
+
   return (
     <div className="space-y-6">
       <audio ref={sirenRef} src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3" loop />
@@ -267,6 +424,14 @@ export default function NestMonitoringPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsAiMode(!isAiMode)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-bold text-xs transition-all shadow-sm ${isAiMode ? 'bg-cyan-600 border-cyan-500 text-white animate-pulse' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-600 dark:text-gray-400 hover:border-cyan-500'}`}
+          >
+            <Brain className={`h-4 w-4 ${isAiMode ? 'text-white' : 'text-cyan-500'}`} />
+            {isAiMode ? 'LIVE AI ACTIVE' : 'ENABLE LIVE AI'}
+          </button>
+
           <CameraSelector onSelect={setActiveCamera} activeCameraId={activeCamera?._id} />
 
           <div className="flex items-center bg-white dark:bg-slate-900 p-1 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
@@ -298,7 +463,7 @@ export default function NestMonitoringPage() {
 
       <SimulationUpload
         onSimulationComplete={(data) => { setSimulationData(data); threatTrackerRef.current = {}; setNests(MOCK_NESTS); }}
-        onClear={() => { setSimulationData(null); setSimulationEntities(null); threatTrackerRef.current = {}; setNests(MOCK_NESTS); setActiveAlerts([]); stopSiren(); }}
+        onClear={() => { setSimulationData(null); setSimulationEntities([]); threatTrackerRef.current = {}; setNests(MOCK_NESTS); setActiveAlerts([]); stopSiren(); }}
       />
 
       <div className="grid grid-cols-1 gap-6">
@@ -326,6 +491,16 @@ export default function NestMonitoringPage() {
                   <div className="bg-black rounded-2xl overflow-hidden shadow-xl aspect-video relative">
                     {simulationData ? (
                       <video ref={videoRef} src={simulationData.video_url} controls autoPlay className="w-full h-full object-cover" onTimeUpdate={handleTimeUpdate} />
+                    ) : isAiMode ? (
+                      <img
+                        src={streamUrl}
+                        className="w-full h-full object-contain bg-black"
+                        alt="Live AI Feed"
+                        onError={(e) => {
+                          console.error("AI Stream failed to load");
+                          setIsAiMode(false);
+                        }}
+                      />
                     ) : (
                       <HlsPlayer src={streamUrl} className="w-full h-full" />
                     )}
