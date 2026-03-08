@@ -6,7 +6,6 @@ import { Bell, User as UserIcon } from "lucide-react";
 import { useTheme } from "./shared/ThemeContext";
 import { API_BASE_URL } from "./shared/config";
 import Navigation from "./shared/components/layout/Navigation";
-import AlertsPanel from "./shared/components/layout/AlertsPanel";
 import HomePage from "./modules/dashboard/HomePage";
 import TurtleHealthPage from "./modules/turtles/TurtleHealthPage";
 import NestMonitoringPage from "./modules/nests/NestMonitoringPage";
@@ -14,6 +13,7 @@ import ShorelineRiskPage from "./modules/shoreline/ShorelineRiskPage";
 import HatcheryPage from "./modules/hatchery/HatcheryPage";
 import ReportsPage from "./modules/reports/ReportsPage";
 import ProfilePage from "./modules/users/ProfilePage";
+import NotificationsPage from "./modules/notifications/NotificationsPage";
 
 const ProtectedRoute = ({ children }) => {
   return (
@@ -26,9 +26,16 @@ const ProtectedRoute = ({ children }) => {
   );
 };
 
-const DashboardLayout = () => {
-  const [activeTab, setActiveTab] = useState("home");
-  const [alertsOpen, setAlertsOpen] = useState(false);
+const DashboardLayout = ({ initialTab = "home" }) => {
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [targetRecordId, setTargetRecordId] = useState(
+    new URLSearchParams(window.location.search).get('recordId') || null
+  );
+
+  const handleTabChange = (tab, recordId = null) => {
+    setActiveTab(tab);
+    setTargetRecordId(recordId || null);
+  };
   const { getToken } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -54,48 +61,27 @@ const DashboardLayout = () => {
 
   const renderPage = () => {
     switch (activeTab) {
-      case "home": return <HomePage />;
-      case "health": return <TurtleHealthPage />;
+      case "home": return <HomePage onTabChange={handleTabChange} />;
+      case "health": return <TurtleHealthPage initialRecordId={targetRecordId} />;
       case "nests": return <NestMonitoringPage />;
       case "shoreline": return <ShorelineRiskPage />;
       case "hatchery": return <HatcheryPage />;
       case "reports": return <ReportsPage />;
-      case "profile": return <ProfilePage />;
-      default: return <HomePage />;
+      case "notifications": return <NotificationsPage onTabChange={handleTabChange} />;
+      default: return <HomePage onTabChange={handleTabChange} />;
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-gray-900 dark:text-gray-100 transition-colors duration-500 selection:bg-cyan-500/30">
-      <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <Navigation
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
         {renderPage()}
       </main>
-
-      {/* Floating Action Buttons */}
-      <div className="fixed bottom-8 right-8 flex flex-col gap-3 z-40">
-        <button
-          onClick={() => setActiveTab("profile")}
-          className="bg-white dark:bg-slate-900 text-cyan-600 dark:text-cyan-400 p-4 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-800 transition-all hover:scale-110 active:scale-95 group"
-          title="Profile & Settings"
-        >
-          <UserIcon className="h-6 w-6 group-hover:rotate-12 transition-transform" />
-        </button>
-
-        <button
-          onClick={() => setAlertsOpen(!alertsOpen)}
-          className="bg-gradient-to-r from-red-500 to-rose-600 text-white p-4 rounded-2xl shadow-2xl transition-all hover:scale-110 active:scale-95 relative"
-          title="Active Alerts"
-        >
-          <Bell className="h-6 w-6" />
-          <span className="absolute -top-1.5 -right-1.5 bg-white dark:bg-slate-900 text-red-600 dark:text-red-400 text-[10px] font-black rounded-lg h-5 min-w-5 px-1 flex items-center justify-center border-2 border-red-500 shadow-md">
-            5
-          </span>
-        </button>
-      </div>
-
-      <AlertsPanel isOpen={alertsOpen} onClose={() => setAlertsOpen(false)} />
     </div>
   );
 };
@@ -125,7 +111,15 @@ function App() {
           path="/dashboard/*"
           element={
             <ProtectedRoute>
-              <DashboardLayout />
+              <DashboardLayout initialTab="home" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout initialTab="notifications" />
             </ProtectedRoute>
           }
         />

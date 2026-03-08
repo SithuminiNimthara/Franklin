@@ -9,7 +9,7 @@ const router = express.Router();
 
 // Apply Clerk middleware only if you really need it globally.
 // If Python calls /alerts/new with no auth, do NOT block it.
-router.use(clerkMiddleware());
+// router.use(clerkMiddleware()); // Removed this to fix 401 Unauthorized on getAlerts
 
 // Multer configuration
 const storage = multer.diskStorage({
@@ -53,6 +53,7 @@ router.post("/video/:videoId/analysis", hatcheryController.updateVideoAnalysis);
 router.get("/stats/:tankId", hatcheryController.getTankStats);
 router.get(
   "/report/hatchery",
+  clerkMiddleware(),
   requireAuth(),
   hatcheryController.generateHatcheryReport,
 );
@@ -66,6 +67,7 @@ router.get("/alerts", hatcheryController.getAlerts);
 
 router.patch(
   "/alerts/:alertId",
+  clerkMiddleware(),
   requireAuth(),
   hatcheryController.updateAlertStatus,
 );
@@ -73,6 +75,7 @@ router.patch(
 // Manual email trigger from dashboard (button)
 router.post(
   "/alerts/:alertId/send-email",
+  clerkMiddleware(),
   requireAuth(),
   alertsController.sendHatcheryEmailAlert,
 );

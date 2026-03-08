@@ -26,3 +26,6 @@ package-lock.json
 .env
 .env.*
 
+# Google service account credentials
+google-credentials.json
+oauth-credentials.json

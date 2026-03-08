@@ -8,28 +8,49 @@ export default function StatSummaryCard({
     colorTheme = 'blue',
     className
 }) {
-    const themes = {
-        blue: "from-blue-500 to-cyan-500 hover:shadow-cyan-500/50",
-        teal: "from-teal-500 to-green-500 hover:shadow-teal-500/50",
-        amber: "from-amber-500 to-orange-500 hover:shadow-amber-500/50",
-        purple: "from-purple-500 to-pink-500 hover:shadow-purple-500/50",
-        red: "from-red-500 to-rose-500 hover:shadow-red-500/50",
-        green: "from-green-500 to-emerald-500 hover:shadow-green-500/50",
-        cyan: "from-cyan-500 to-blue-500 hover:shadow-cyan-500/50",
+    // Keep color classes for trend indicators, but make the card itself neutral and formal
+    const trendClass = typeof subtext === 'string' && subtext.includes('↑')
+        ? "text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded-md"
+        : typeof subtext === 'string' && subtext.includes('↓')
+            ? "text-rose-600 dark:text-rose-400 font-medium bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded-md"
+            : "text-slate-500 dark:text-slate-400 font-medium";
+
+    // Split arrow out to colorize just the arrow and stat, keeping text neutral if possible
+    const parseSubtext = (text) => {
+        if (typeof text !== 'string') return text;
+        const parts = text.split(' ');
+        if (parts[0] === '↑' || parts[0] === '↓') {
+            return (
+                <>
+                    <span className={trendClass}>{parts[0]} {parts[1]}</span>
+                    <span className="ml-1.5 opacity-80">{parts.slice(2).join(' ')}</span>
+                </>
+            )
+        }
+        return text;
     };
 
     return (
         <div className={twMerge(
-            "bg-gradient-to-br rounded-2xl shadow-2xl p-6 text-white !text-white [&_*]:!text-white transition-all duration-300",
-            themes[colorTheme] || themes.blue,
+            "bg-white dark:bg-slate-[0B1120] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col justify-between",
             className
         )}>
-            <div className="flex items-center justify-between mb-4">
-                {Icon && <Icon className="h-8 w-8" />}
-                <span className="text-4xl font-bold">{value}</span>
+            <div className="flex flex-row items-center justify-between pb-3">
+                <h3 className="tracking-tight text-sm font-semibold text-slate-500 dark:text-slate-400">
+                    {label}
+                </h3>
+                {Icon && <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500" strokeWidth={2.5} />}
             </div>
-            <p className="text-sm font-medium opacity-90">{label}</p>
-            {subtext && <p className="text-xs opacity-75 mt-1">{subtext}</p>}
+            <div>
+                <div className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+                    {value}
+                </div>
+                {subtext && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center">
+                        {parseSubtext(subtext)}
+                    </p>
+                )}
+            </div>
         </div>
     );
 }
