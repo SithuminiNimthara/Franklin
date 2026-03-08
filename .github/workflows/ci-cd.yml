@@ -17,16 +17,8 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
       
-    # Validate that all Docker containers build successfully
-    - name: Build Backend docker image
-      run: docker compose build backend
-      
-    - name: Build AI Service docker image
-      run: docker compose build ai_service
-      
-    - name: Build Frontend docker image
-      run: docker compose build frontend
-      
-    # This acts as a basic CI. For CD, you can add deployment steps here
-    # E.g., docker push to a registry (DockerHub, AWS ECR)
-    # E.g., SSH into production server and run `docker compose up -d`
+    - name: Build all Docker images
+      run: docker compose build
+
+    - name: Verify Docker images
+      run: docker images
