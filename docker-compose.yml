@@ -22,6 +22,8 @@ services:
         VITE_API_BASE_URL: http://localhost:5002
         VITE_AI_SERVICE_URL: http://localhost:8000
         VITE_CLERK_PUBLISHABLE_KEY: pk_test_cHVtcGVkLWNvd2JpcmQtNzQuY2xlcmsuYWNjb3VudHMuZGV2JA
+        VITE_GOOGLE_MAPS_API_KEY: AIzaSyDpwy79IM6EjuRUy0-lpf3wrkkfRvjuGsk
+
     ports:
       - "5173:80"
     restart: unless-stopped
