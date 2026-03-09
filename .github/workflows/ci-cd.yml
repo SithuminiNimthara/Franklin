@@ -59,7 +59,7 @@ jobs:
         run: docker compose up -d
 
       - name: Wait for containers to initialize
-        run: sleep 25
+        run: sleep 30
 
       - name: Show running containers
         run: docker ps -a
@@ -68,7 +68,18 @@ jobs:
         run: docker compose logs --no-color
 
       - name: Check backend health
-        run: curl -f http://localhost:5002/health
+        run: |
+          for i in {1..12}; do
+            echo "Health check attempt $i..."
+            if curl -f http://localhost:5002/health; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Backend health check failed after multiple attempts"
+          docker compose logs --no-color
+          exit 1
 
       - name: Create deployment report
         if: always()
