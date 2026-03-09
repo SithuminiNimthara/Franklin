@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-run-report:
@@ -17,6 +17,38 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Create backend .env
+        run: |
+          mkdir -p Backend
+          cat > Backend/.env <<EOF
+          PORT=5002
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          NODE_ENV=production
+          TEST_MODE_SECONDS=10
+          CLERK_PUBLISHABLE_KEY=${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_SECURE=${{ secrets.SMTP_SECURE }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+          EOF
+
+      - name: Create AI service .env
+        run: |
+          mkdir -p Models/AI_Service
+          cat > Models/AI_Service/.env <<EOF
+          NODE_BACKEND_URL=http://backend:5002/api/detections
+          PORT=8000
+          EOF
+
+      - name: Create frontend .env
+        run: |
+          mkdir -p Frontend
+          cat > Frontend/.env <<EOF
+          EOF
+
       - name: Build Docker images
         run: docker compose build
 
@@ -26,6 +58,9 @@ jobs:
       - name: Start containers
         run: docker compose up -d
 
+      - name: Wait for containers to initialize
+        run: sleep 25
+
       - name: Show running containers
         run: docker ps -a
 
@@ -33,25 +68,31 @@ jobs:
         run: docker compose logs --no-color
 
       - name: Check backend health
-        run: curl -f http://localhost:5002/health || exit 1
+        run: curl -f http://localhost:5002/health
 
       - name: Create deployment report
+        if: always()
         run: |
-          echo "Deployment Report" > deployment-report.txt
-          echo "Repository: Franklin" >> deployment-report.txt
-          echo "Branch: $GITHUB_REF_NAME" >> deployment-report.txt
-          echo "Commit: $GITHUB_SHA" >> deployment-report.txt
-          echo "" >> deployment-report.txt
-          echo "=== Docker Images ===" >> deployment-report.txt
-          docker images >> deployment-report.txt
-          echo "" >> deployment-report.txt
-          echo "=== Docker Containers ===" >> deployment-report.txt
-          docker ps -a >> deployment-report.txt
-          echo "" >> deployment-report.txt
-          echo "=== Docker Compose Logs ===" >> deployment-report.txt
-          docker compose logs --no-color >> deployment-report.txt
+          {
+            echo "Deployment Report"
+            echo "=================="
+            echo "Repository: Franklin"
+            echo "Branch: $GITHUB_REF_NAME"
+            echo "Commit: $GITHUB_SHA"
+            echo "Run ID: $GITHUB_RUN_ID"
+            echo
+            echo "=== Docker Images ==="
+            docker images
+            echo
+            echo "=== Docker Containers ==="
+            docker ps -a
+            echo
+            echo "=== Docker Compose Logs ==="
+            docker compose logs --no-color
+          } > deployment-report.txt
 
       - name: Upload deployment report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: deployment-report
