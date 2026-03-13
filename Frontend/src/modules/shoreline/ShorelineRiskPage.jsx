@@ -366,7 +366,6 @@ export default function ShorelineRiskPage() {
         <StatCard
           label="High Risk"
           value={highCount}
-          sub="nests + boundary breach"
           accent="#ef4444"
           softBg="#fef2f2"
           borderColor="#fecaca"
@@ -377,7 +376,6 @@ export default function ShorelineRiskPage() {
         <StatCard
           label="Warnings"
           value={mediumCount}
-          sub="within threshold"
           accent="#f59e0b"
           softBg="#fffbeb"
           borderColor="#fde68a"
@@ -388,7 +386,6 @@ export default function ShorelineRiskPage() {
         <StatCard
           label="Monitored"
           value={nests.length}
-          sub="active nest sites"
           accent="#0ea5e9"
           softBg="#f0f9ff"
           borderColor="#bae6fd"
