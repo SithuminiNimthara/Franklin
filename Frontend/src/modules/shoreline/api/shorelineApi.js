@@ -123,9 +123,7 @@ export async function predictDemoVideo(name = "shoreline_demo.mp4") {
   return json;
 }
 
-// ---------------------
-// Alerts (MongoDB)
-// ---------------------
+
 export async function getAlerts(limit = 50, page = 1) {
   const url = `${API_BASE}/api/shoreline/alerts?limit=${limit}&page=${page}`;
   const res = await fetch(url);
