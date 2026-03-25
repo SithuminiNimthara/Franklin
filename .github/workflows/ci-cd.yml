@@ -2,31 +2,113 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
-  build-and-test:
+  build-run-report:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-      
-    # Validate that all Docker containers build successfully
-    - name: Build Backend docker image
-      run: docker compose build backend
-      
-    - name: Build AI Service docker image
-      run: docker compose build ai_service
-      
-    - name: Build Frontend docker image
-      run: docker compose build frontend
-      
-    # This acts as a basic CI. For CD, you can add deployment steps here
-    # E.g., docker push to a registry (DockerHub, AWS ECR)
-    # E.g., SSH into production server and run `docker compose up -d`
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create backend .env
+        run: |
+          mkdir -p Backend
+          cat > Backend/.env <<EOF
+          PORT=5002
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          NODE_ENV=production
+          TEST_MODE_SECONDS=10
+          CLERK_PUBLISHABLE_KEY=${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_SECURE=${{ secrets.SMTP_SECURE }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+          EOF
+
+      - name: Create AI service .env
+        run: |
+          mkdir -p Models/AI_Service
+          cat > Models/AI_Service/.env <<EOF
+          NODE_BACKEND_URL=http://backend:5002/api/detections
+          PORT=8000
+          EOF
+
+      - name: Create frontend .env
+        run: |
+          mkdir -p Frontend
+          cat > Frontend/.env <<EOF
+          EOF
+
+      - name: Build Docker images
+        run: docker compose build
+
+      - name: Show Docker images
+        run: docker images
+
+      - name: Start containers
+        run: docker compose up -d
+
+      - name: Wait for containers to initialize
+        run: sleep 30
+
+      - name: Show running containers
+        run: docker ps -a
+
+      - name: Show container logs
+        run: docker compose logs --no-color
+
+      - name: Check backend health
+        run: |
+          for i in {1..12}; do
+            echo "Health check attempt $i..."
+            if curl -f http://localhost:5002/health; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Backend health check failed after multiple attempts"
+          docker compose logs --no-color
+          exit 1
+
+      - name: Create deployment report
+        if: always()
+        run: |
+          {
+            echo "Deployment Report"
+            echo "=================="
+            echo "Repository: Franklin"
+            echo "Branch: $GITHUB_REF_NAME"
+            echo "Commit: $GITHUB_SHA"
+            echo "Run ID: $GITHUB_RUN_ID"
+            echo
+            echo "=== Docker Images ==="
+            docker images
+            echo
+            echo "=== Docker Containers ==="
+            docker ps -a
+            echo
+            echo "=== Docker Compose Logs ==="
+            docker compose logs --no-color
+          } > deployment-report.txt
+
+      - name: Upload deployment report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report
+          path: deployment-report.txt
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down -v

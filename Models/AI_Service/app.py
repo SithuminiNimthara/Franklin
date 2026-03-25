@@ -5,6 +5,9 @@ import numpy as np
 import cv2
 import requests
 import time
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
@@ -39,9 +42,9 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Render environment variables
-NODE_BACKEND_URL = (os.environ.get("NODE_BACKEND_URL") or "").strip().rstrip("/")
-AI_SERVICE_URL = (os.environ.get("AI_SERVICE_URL") or "").strip().rstrip("/")
+# Environment variables (set in Render dashboard)
+NODE_BACKEND_URL = os.environ.get("NODE_BACKEND_URL", "http://localhost:5002").strip()
+AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://localhost:8000").strip()
 
 # If running on Render, ensure config dir is writeable
 os.environ.setdefault("YOLO_CONFIG_DIR", "/tmp/Ultralytics")
@@ -195,11 +198,96 @@ async def analyze_unified(request: Request, file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, f)
 
     try:
-        result = processor.process_video(path, filename)
-        
-        # Determine current base URL dynamically if env is missing
-        base = AI_SERVICE_URL or str(request.base_url).rstrip("/")
-        result["video_url"] = f"{base}/content/{filename}"
+        result = unified.process_video(path, filename)
+
+        base_url = AI_SERVICE_URL or str(request.base_url).rstrip("/")
+        result["video_url"] = f"{base_url}/content/{filename}"
+        return result
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/ai/unified/stream")
+def stream_unified(source: str):
+    """
+    Stream a live camera or remote video through UnifiedProcessor.
+    Uses frame-skipping to maintain real-time performance.
+    """
+    unified = get_unified()
+
+    def iter_frames():
+        print(f"📹 Starting unified stream for {source}")
+        cap = cv2.VideoCapture(source)
+        if not cap.isOpened():
+            print(f"❌ Failed to open video source: {source}")
+            return
+
+        frame_count = 0
+        process_every = 3 # Process every 3rd frame for AI to reduce CPU load
+        last_annotated = None
+        target_size = (640, 360) # Standard 16:9 for faster inference
+
+        while cap.isOpened():
+            success, frame = cap.read()
+            if not success:
+                # If it's a file, loop it. 
+                if not source.startswith("rtsp://"):
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    success, frame = cap.read()
+                    if not success: break
+                else:
+                    # For RTSP, wait a bit and retry OR break if persistent
+                    time.sleep(1)
+                    continue
+
+            frame_count += 1
+            
+            # AI Inference
+            if frame_count % process_every == 0 or last_annotated is None:
+                # Resize for MUCH faster processing
+                small_frame = cv2.resize(frame, target_size)
+                last_annotated, _ = unified.process_frame(small_frame, source_id=source)
+            
+            # Use annotated frame for streaming
+            display_frame = last_annotated if last_annotated is not None else frame
+
+            # Encode with slightly lower quality for faster transmission
+            ok, buf = cv2.imencode(".jpg", display_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+            if not ok: continue
+
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
+            )
+
+            # Small delay to prevent CPU spinning 100% on empty loops
+            if source.startswith("rtsp://"):
+                # Reduced sleep for better responsiveness
+                time.sleep(0.005)
+
+        cap.release()
+        print(f"🛑 Unified stream stopped for {source}")
+
+    return StreamingResponse(iter_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+# ---------------------------
+# DISEASE ENDPOINTS
+# ---------------------------
+@app.post("/ai/disease/classify")
+async def classify_disease(file: UploadFile = File(...)):
+    # This prevents Render 502 caused by heavy TF model load on small instances
+    if DISABLE_DISEASE:
+        return get_disease_disabled()
+
+    try:
+        classifier = get_disease()
+        content = await file.read()
+        result = classifier.classify(content)
+
+        if isinstance(result, dict) and "error" in result:
+            raise HTTPException(500, result["error"])
+
         return result
     except Exception as e:
         raise HTTPException(500, f"Analysis Error: {e}")
@@ -262,14 +350,6 @@ def stream_hatchery(video_id: str):
             ok, frame = cap.read()
             if not ok:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-<<<<<<< HEAD
-                continue
-            
-            frame = hatchery.process_frame(frame, video_id, fps)
-            _, buf = cv2.imencode(".jpg", frame)
-            yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
-            
-=======
                 success, frame = cap.read()
                 if not success:
                     print(f"⚠️ Reopening video {video_id}...")
@@ -288,17 +368,9 @@ def stream_hatchery(video_id: str):
                 b"Content-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
             )
 
->>>>>>> origin/main
         cap.release()
     return StreamingResponse(iter_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
-<<<<<<< HEAD
-@app.get("/ai/hatchery/data/{video_id}")
-def data_hatchery(video_id: str):
-    hatchery = get_hatchery()
-    return hatchery.states.get(video_id, {"status": "Offline", "health": "Unknown"})
-
-=======
 
 @app.get("/ai/hatchery/data/{video_id}")
 def data_hatchery(video_id: str):
@@ -312,7 +384,6 @@ def data_hatchery(video_id: str):
 # ---------------------------
 # Static content output
 # ---------------------------
->>>>>>> origin/main
 @app.get("/content/{filename}")
 async def get_content(filename: str):
     path = os.path.join(OUTPUT_DIR, filename)

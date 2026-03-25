@@ -50,25 +50,50 @@ class StreamingService {
         const isRtsp = rtspUrl.startsWith('rtsp://');
         const ffmpegArgs = [];
 
-        if (isRtsp) {
-            ffmpegArgs.push('-rtsp_transport', 'tcp');
+        // For local files, read at native frame rate to simulate a stream
+        if (!isRtsp) {
+            ffmpegArgs.push('-re');
+        } else {
+            ffmpegArgs.push(
+                '-rtsp_transport', 'tcp',
+                '-rtsp_flags', 'prefer_tcp',
+                '-fflags', 'nobuffer+genpts',
+                '-use_wallclock_as_timestamps', '1',
+                '-probesize', '32768',
+                '-analyzeduration', '0'
+            );
         }
 
+        // Use forward slashes for FFmpeg paths even on Windows
+        const normalizedInput = rtspUrl.replace(/\\/g, '/');
+        const normalizedSegmentPattern = path.join(cameraDir, 'p%d.ts').replace(/\\/g, '/');
+        const normalizedPlaylist = playlistPath.replace(/\\/g, '/');
+
         ffmpegArgs.push(
-            '-i', rtspUrl,
+            '-i', normalizedInput,
             '-c:v', 'libx264',
+            '-profile:v', 'baseline',
+            '-level', '3.0',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
-            '-c:a', 'none',
+            '-vf', 'scale=-2:480,format=yuv420p',
+            '-g', '30',
+            '-force_key_frames', 'expr:gte(t,n_forced*1)',
+            '-sc_threshold', '0',
+            '-c:a', 'aac',
+            '-ar', '44100',
+            '-ac', '2',
+            '-b:a', '128k',
             '-f', 'hls',
-            '-hls_time', '2',
+            '-hls_time', '1',
             '-hls_list_size', '3',
-            '-hls_flags', 'delete_segments',
-            '-hls_segment_filename', path.join(cameraDir, 'seg_%d.ts'),
-            playlistPath
+            '-hls_flags', 'delete_segments+independent_segments+omit_endlist+discont_start',
+            '-hls_allow_cache', '0',
+            '-hls_segment_filename', `file:${normalizedSegmentPattern}`,
+            `file:${normalizedPlaylist}`
         );
 
-        console.log(`[Camera ${id}] Source: ${rtspUrl}`);
+        console.log(`[Camera ${id}] Source: ${normalizedInput}`);
         console.log(`[Camera ${id}] Executing: ${ffmpegPath} ${ffmpegArgs.join(' ')}`);
         const process = spawn(ffmpegPath, ffmpegArgs);
 
@@ -77,18 +102,41 @@ class StreamingService {
         });
 
         process.stderr.on('data', (data) => {
-            console.error(`[Camera ${id}] stderr: ${data}`);
+            // Log only critical errors or performance issues to avoid spamming
+            const msg = data.toString();
+            if (msg.includes('Error') || msg.includes('speed=')) {
+                console.error(`[Camera ${id}] info: ${msg.trim()}`);
+            }
         });
 
         process.on('close', (code) => {
-            console.log(`[Camera ${id}] ffmpeg process exited with code ${code}`);
+            const entry = this.processes.get(id);
+            const wasStopping = entry?.isStopping;
+
+            console.log(`[Camera ${id}] ffmpeg process exited with code ${code}${wasStopping ? ' (Manual Stop)' : ''}`);
             this.processes.delete(id);
+
+            // Auto-restart logic for "always on" streaming - skip if manually stopping
+            if (!wasStopping) {
+                if (code !== null && code !== 0) {
+                    console.warn(`[Camera ${id}] Unexpected exit. Restarting in 5 seconds...`);
+                    setTimeout(() => {
+                        this.startCamera({ id, rtspUrl });
+                    }, 5000);
+                } else if (code === 0) {
+                    console.log(`[Camera ${id}] Process ended. Restarting to ensure "always on" stream...`);
+                    setTimeout(() => {
+                        this.startCamera({ id, rtspUrl });
+                    }, 1000);
+                }
+            }
         });
 
         this.processes.set(id, {
             process,
             startTime: new Date(),
-            rtspUrl
+            rtspUrl,
+            isStopping: false
         });
     }
 
@@ -96,8 +144,9 @@ class StreamingService {
         const cameraProcess = this.processes.get(id);
         if (cameraProcess) {
             console.log(`Stopping streaming for camera ${id}...`);
+            cameraProcess.isStopping = true; // Mark as intentional stop
             cameraProcess.process.kill('SIGTERM');
-            this.processes.delete(id);
+            // Entry will be deleted in the 'close' event handler
         }
     }
 

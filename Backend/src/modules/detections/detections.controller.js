@@ -1,5 +1,6 @@
 import { Detection } from './detections.model.js';
 import { notificationService } from '../notifications/notification.service.js';
+import { io } from '../../server.js';
 
 export const createDetection = async (req, res) => {
     try {
@@ -8,6 +9,11 @@ export const createDetection = async (req, res) => {
 
         // Track threat logic
         notificationService.trackDetection(detection);
+
+        // Emit for real-time map updates
+        if (io) {
+            io.emit('new_detection', detection);
+        }
 
         res.status(201).json({ success: true, data: detection });
     } catch (error) {

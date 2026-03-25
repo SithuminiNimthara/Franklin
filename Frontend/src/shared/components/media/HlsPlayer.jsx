@@ -60,11 +60,19 @@ export default function HlsPlayer({ src, className }) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
-        backBufferLength: 30,
-        manifestLoadingTimeOut: 15000,
-        fragLoadingTimeOut: 15000,
-        liveSyncDurationCount: 3,
-        autoStartLoad: true
+        backBufferLength: 0,
+        maxBufferLength: 5,
+        maxMaxBufferLength: 10,
+        manifestLoadingTimeOut: 10000,
+        manifestLoadingMaxRetry: 10,
+        manifestLoadingRetryDelay: 500,
+        fragLoadingTimeOut: 10000,
+        liveSyncDurationCount: 1,
+        liveMaxLatencyDurationCount: 2,
+        maxLiveSyncPlaybackRate: 1.1,
+        autoStartLoad: true,
+        driftThreshold: 0.1,
+        enableLowLatencyCorrection: true
       })
 
       hlsRef.current = hls
@@ -72,29 +80,42 @@ export default function HlsPlayer({ src, className }) {
       hls.attachMedia(video)
 
       hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-        console.log("[HlsPlayer] Manifest parsed. Audio tracks:", hls.audioTracks.length)
+        console.log(`[HlsPlayer] Real-time session started: ${src}`)
         setHasAudio(hls.audioTracks.length > 0)
-        setStatus("playing")
-        setRetryCount(0)
 
-        // Autoplay logic: browsers allow autoplay ONLY if muted or after interaction
         video.muted = isMuted
         video.volume = volume
-        video.play().catch(err => {
-          console.warn("[HlsPlayer] Autoplay blocked, waiting for interaction:", err.message)
-          setIsPlaying(false)
-        })
+
+        const playPromise = video.play()
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            console.log("[HlsPlayer] Playback active")
+            setStatus("playing")
+            setRetryCount(0)
+
+            // Initial sync to live edge
+            if (video.duration > 0) {
+              video.currentTime = video.duration - 0.5
+            }
+          }).catch(err => {
+            console.warn("[HlsPlayer] Autoplay logic:", err.message)
+            setStatus("playing")
+            setIsPlaying(false)
+          })
+        }
       })
 
-      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (event, data) => {
-        console.log("[HlsPlayer] Audio tracks updated:", data.audioTracks.length)
-        setHasAudio(data.audioTracks.length > 0)
+      // Lag detection & Catch-up mechanism
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        if (video.duration > 0 && (video.duration - video.currentTime > 2.5)) {
+          console.warn(`[HlsPlayer] Lag detected (${(video.duration - video.currentTime).toFixed(1)}s). Catching up...`)
+          video.currentTime = video.duration - 0.8
+        }
       })
 
       hls.on(Hls.Events.ERROR, (event, data) => {
         if (data.fatal) {
-          setStatus("reconnecting")
-          console.error(`[HlsPlayer] Fatal Error: ${data.details}`)
+          console.error(`[HlsPlayer] Fatal ${data.type}: ${data.details}`)
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               hls.startLoad()
@@ -103,7 +124,8 @@ export default function HlsPlayer({ src, className }) {
               hls.recoverMediaError()
               break
             default:
-              const wait = Math.min(1000 * Math.pow(2, retryCount), 15000)
+              setStatus("reconnecting")
+              const wait = Math.min(500 * Math.pow(2, retryCount), 10000)
               setTimeout(() => {
                 setRetryCount(prev => prev + 1)
                 initHls()
@@ -113,14 +135,14 @@ export default function HlsPlayer({ src, className }) {
         }
       })
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // Safari native HLS
       video.src = src
-      video.muted = true // Start muted for autoplay
-      video.addEventListener('loadedmetadata', () => {
-        video.play().catch(() => setIsPlaying(false))
+      video.muted = isMuted
+      video.play().then(() => {
         setStatus("playing")
-        // Note: Safari doesn't provide track info as easily via standard API without iteration
         setHasAudio(true)
+      }).catch(() => {
+        setIsPlaying(false)
+        setStatus("playing")
       })
     }
   }, [src, retryCount, isMuted, volume])
@@ -130,9 +152,18 @@ export default function HlsPlayer({ src, className }) {
     return () => hlsRef.current?.destroy()
   }, [initHls])
 
+  // Separate effect for volume/mute updates
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted
+      videoRef.current.volume = volume
+    }
+  }, [isMuted, volume])
+
   // Controls
   const togglePlay = (e) => {
     e?.stopPropagation()
+    if (!videoRef.current) return
     if (videoRef.current.paused) {
       videoRef.current.play()
       setIsPlaying(true)
@@ -145,10 +176,9 @@ export default function HlsPlayer({ src, className }) {
   const handleUnmute = (e) => {
     e?.stopPropagation()
     console.log("[HlsPlayer] User unmuted via interaction")
-    videoRef.current.muted = false
     setIsMuted(false)
     setIsUnmutedByInteraction(true)
-    if (videoRef.current.paused) {
+    if (videoRef.current?.paused) {
       videoRef.current.play()
       setIsPlaying(true)
     }
@@ -156,23 +186,18 @@ export default function HlsPlayer({ src, className }) {
 
   const toggleMute = (e) => {
     e?.stopPropagation()
-    const newMuted = !isMuted
-    videoRef.current.muted = newMuted
-    setIsMuted(newMuted)
-    if (!newMuted) setIsUnmutedByInteraction(true)
+    setIsMuted(prev => !prev)
+    if (isMuted) setIsUnmutedByInteraction(true)
   }
 
   const handleVolumeChange = (e) => {
     const val = parseFloat(e.target.value)
     setVolume(val)
-    videoRef.current.volume = val
     if (val > 0) {
-      videoRef.current.muted = false
       setIsMuted(false)
       setIsUnmutedByInteraction(true)
     } else {
       setIsMuted(true)
-      videoRef.current.muted = true
     }
   }
 
@@ -183,6 +208,11 @@ export default function HlsPlayer({ src, className }) {
     } else {
       document.exitFullscreen()
     }
+  }
+
+  const handleRefresh = (e) => {
+    e?.stopPropagation()
+    setRetryCount(prev => prev + 1)
   }
 
   return (
@@ -198,6 +228,8 @@ export default function HlsPlayer({ src, className }) {
         className="w-full h-full object-contain"
         autoPlay
         playsInline
+        muted={isMuted}
+        crossOrigin="anonymous"
       />
 
       {/* Autoplay/Muted Overlay */}
@@ -219,9 +251,15 @@ export default function HlsPlayer({ src, className }) {
       {(status === "loading" || status === "reconnecting") && (
         <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center text-white z-40">
           <Loader2 className="h-8 w-8 animate-spin text-cyan-500 mb-4" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-cyan-500">
+          <p className="text-[10px] font-black uppercase tracking-widest text-cyan-500 mb-2">
             {status === "loading" ? "Initializing Live Feed" : "Signal Loss • Reconnecting"}
           </p>
+          <button
+            onClick={handleRefresh}
+            className="text-[9px] font-bold text-slate-500 hover:text-white transition-colors underline"
+          >
+            Retry Connection
+          </button>
         </div>
       )}
 
@@ -285,3 +323,4 @@ export default function HlsPlayer({ src, className }) {
     </div>
   )
 }
+

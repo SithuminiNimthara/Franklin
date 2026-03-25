@@ -138,7 +138,7 @@ export default function BeachMap({ simulationEntities }) {
         return (
           <div
             key={entity.id}
-            className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-500 ease-in-out cursor-pointer z-30"
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 ease-in-out cursor-pointer z-30"
             style={{ left: `${entity.x}%`, top: `${entity.y}%` }}
             onMouseEnter={() => setHoveredEntity(entity.id)}
             onMouseLeave={() => setHoveredEntity(null)}

@@ -67,6 +67,7 @@ const DashboardLayout = ({ initialTab = "home" }) => {
       case "shoreline": return <ShorelineRiskPage />;
       case "hatchery": return <HatcheryPage />;
       case "reports": return <ReportsPage />;
+      case "profile": return <ProfilePage />;
       case "notifications": return <NotificationsPage onTabChange={handleTabChange} />;
       default: return <HomePage onTabChange={handleTabChange} />;
     }
