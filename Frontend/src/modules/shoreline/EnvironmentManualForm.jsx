@@ -11,7 +11,7 @@ import {
   getEnvironmentCurrent,
   saveManualEnvironment,
 } from "./api/shorelineApi.js";
-import { COLORS, SectionHeader } from "./shorelineTheme.jsx";
+import { COLORS, SectionHeader } from "./Shorelinetheme.jsx";
 
 function Field({ label, children }) {
   return (
