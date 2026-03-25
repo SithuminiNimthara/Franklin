@@ -14,7 +14,7 @@ import {
   acknowledgeAlert,
   resolveAlert,
 } from "./api/shorelineApi.js";
-import { COLORS, SectionHeader } from "./shorelineTheme.jsx";
+import { COLORS, SectionHeader } from "./Shorelinetheme.jsx";
 
 function RiskBadge({ risk }) {
   const map = {
