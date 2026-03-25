@@ -16,7 +16,7 @@ import ShorelineBeachMap from "../../shared/components/maps/ShorelineBeachMap.js
 import ShorelineVideoPlayer from "../shoreline/ShorelineVideoPlayer.jsx";
 import ShorelineAlertsPanel from "../shoreline/ShorelineAlertsPanel.jsx";
 import EnvironmentManualForm from "../shoreline/EnvironmentManualForm.jsx";
-import { COLORS, SectionHeader, LiveDot, Panel } from "./shorelineTheme.jsx";
+//import { COLORS, SectionHeader, LiveDot, Panel } from "./shorelineTheme.jsx";
 import {
   getBoundary,
   getNests,
