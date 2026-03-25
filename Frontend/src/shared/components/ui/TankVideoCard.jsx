@@ -20,14 +20,13 @@ export default function TankVideoCard({ tankId, tankLabel }) {
             status: "Offline",
             health: "Unknown",
             species: "Unknown",
-          })
+          }),
         );
     }, 1000);
     return () => clearInterval(interval);
   }, [tankId]);
 
-  const HealthIcon =
-    data.health === "Critical" ? AlertCircle : ShieldCheck;
+  const HealthIcon = data.health === "Critical" ? AlertCircle : ShieldCheck;
 
   return (
     <>

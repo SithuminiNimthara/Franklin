@@ -9,7 +9,7 @@ export async function predictViaPython(buffer, filename, mimetype) {
 
   form.append("file", blob, filename || "image.jpg");
 
-  const res = await fetch(`${PY_INFER_URL}/ai/shoreline/predict`, {
+  const res = await fetch(`${PY_INFER_URL}/predict`, {
     method: "POST",
     body: form, // ❌ do NOT set headers
   });
@@ -21,7 +21,7 @@ export async function predictViaPython(buffer, filename, mimetype) {
   let json = null;
   try {
     json = JSON.parse(text);
-  } catch { }
+  } catch {}
 
   return { status: res.status, body: json ?? { detail: text } };
 }

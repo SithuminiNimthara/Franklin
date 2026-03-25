@@ -13,9 +13,13 @@ import {
   predictProxy,
   predictVideoProxy,
   predictVideoDemo,
+  evaluateVideoUpload,
 } from "./shoreline.controller.js";
 
-import { uploadSingleFile } from "./middlewares/upload.middleware.js";
+import {
+  uploadSingleImage,
+  uploadSingleVideo,
+} from "./middlewares/upload.middleware.js";
 
 const router = Router();
 
@@ -40,8 +44,8 @@ router.use("/alerts", alertRoutes);
 // --------------------
 // Inference (IMAGE / VIDEO)
 // --------------------
-router.post("/predict", uploadSingleFile, predictProxy);
-router.post("/predict-video", uploadSingleFile, predictVideoProxy);
+router.post("/predict", uploadSingleImage, predictProxy);
+router.post("/predict-video", uploadSingleVideo, predictVideoProxy);
 router.get("/predict-video-demo", predictVideoDemo);
 
 // --------------------
@@ -50,8 +54,14 @@ router.get("/predict-video-demo", predictVideoDemo);
 router.post(
   "/evaluate-offline",
   requireAuth(), // ✅ Clerk auth
-  uploadSingleFile, // ✅ multer wrapper
+  uploadSingleImage, // ✅ multer wrapper
   evaluateOffline, // ✅ sends email to logged-in user
 );
 
+router.post(
+  "/evaluate-video",
+  requireAuth(),
+  uploadSingleVideo, // same multer
+  evaluateVideoUpload,
+);
 export default router;

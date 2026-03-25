@@ -1,12 +1,8 @@
 fastapi
 uvicorn[standard]
 python-multipart
+opencv-python-headless
 numpy
 requests
 python-dotenv
-pillow
-opencv-python-headless
 ultralytics
-lapx
-tensorflow-cpu
-keras

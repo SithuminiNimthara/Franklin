@@ -49,7 +49,7 @@ export default function UploadAnalyzer() {
 
     const interval = setInterval(async () => {
       try {
-        const backendResponse = await fetch(`${API_BASE_URL}/api/hatchery/video-analysis/${videoId}`);
+        const backendResponse = await fetch(`${API_BASE_URL}/hatchery/video-analysis/${videoId}`);
         if (backendResponse.ok) {
           const mongoData = await backendResponse.json();
           console.log("MongoDB data:", mongoData); // Debug log
