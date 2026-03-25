@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { COLORS } from "./shorelineTheme.jsx";
+import { COLORS } from "./Shorelinetheme.jsx";
 
 export default function ShorelineVideoPlayer({
   src,
