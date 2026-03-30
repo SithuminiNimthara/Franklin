@@ -20,7 +20,9 @@ export const requireAuth = async (req, res, next) => {
     console.log(`[Auth] Verifying token (starts with: ${token.substring(0, 10)}...)`);
 
     try {
-        const sessionClaims = await clerkClient.verifyToken(token);
+        const sessionClaims = await clerkClient.verifyToken(token, {
+            clockSkewInMs: 60000 // 1 minute allowed skew
+        });
 
         console.log('[Auth] Token verified. UserId:', sessionClaims.sub);
 
