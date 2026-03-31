@@ -33,7 +33,8 @@ import { environmentScore } from "./services/environmentRisk.service.js";
 import { notifyIfAllowed } from "./services/shorelineNotify.service.js";
 
 // ✅ python base url
-const PY_INFER_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+const PY_INFER_URL =
+  process.env.PY_INFER_URL || "http://127.0.0.1:8000/ai/shoreline";
 
 // ✅ resolve this module directory (ESM-safe)
 const __filename = fileURLToPath(import.meta.url);
@@ -164,7 +165,7 @@ export async function predictVideoProxy(req, res) {
     const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
     form.append("file", blob, req.file.originalname || "video.mp4");
 
-    const pyRes = await fetch(`${PY_INFER_URL}/ai/shoreline/predict-video`, {
+    const pyRes = await fetch(`${PY_INFER_URL}/predict-video`, {
       method: "POST",
       body: form,
     });
@@ -173,7 +174,7 @@ export async function predictVideoProxy(req, res) {
     let json = null;
     try {
       json = JSON.parse(text);
-    } catch { }
+    } catch {}
 
     return res.status(pyRes.status).json(json ?? { detail: text });
   } catch (e) {
@@ -201,7 +202,7 @@ export async function predictVideoDemo(req, res) {
     const blob = new Blob([buffer], { type: "video/mp4" });
     form.append("file", blob, name);
 
-    const pyRes = await fetch(`${PY_INFER_URL}/ai/shoreline/predict-video`, {
+    const pyRes = await fetch(`${PY_INFER_URL}/predict-video`, {
       method: "POST",
       body: form,
     });
@@ -210,7 +211,7 @@ export async function predictVideoDemo(req, res) {
     let json = null;
     try {
       json = JSON.parse(text);
-    } catch { }
+    } catch {}
 
     return res.status(pyRes.status).json(json ?? { detail: text });
   } catch (e) {
@@ -431,5 +432,203 @@ export async function evaluateOffline(req, res) {
     return res
       .status(500)
       .json({ detail: e.message || "evaluateOffline failed" });
+  }
+}
+
+export async function evaluateVideoUpload(req, res) {
+  try {
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ detail: "video file is required (field 'file')" });
+    }
+
+    // 1) send to python predict-video
+    const form = new FormData();
+
+    //  disk upload -> read from path
+    const buffer = fs.readFileSync(req.file.path);
+    const blob = new Blob([buffer], { type: req.file.mimetype || "video/mp4" });
+    form.append("file", blob, req.file.originalname || "video.mp4");
+
+    const pyRes = await fetch(`${PY_INFER_URL}/predict-video`, {
+      method: "POST",
+      body: form,
+    });
+
+    const text = await pyRes.text();
+    let pyJson = null;
+    try {
+      pyJson = JSON.parse(text);
+    } catch {}
+
+    if (!pyRes.ok) {
+      return res.status(pyRes.status).json(pyJson ?? { detail: text });
+    }
+
+    // expected from python:
+    // { fps, frames: [{ t, shoreline_points:[{x,y,conf}], image:{w,h}, risk_level? }] }
+    const frames = Array.isArray(pyJson?.frames) ? pyJson.frames : [];
+    const fps = Number(pyJson?.fps || 30);
+
+    // 2) load boundary + nests
+    const boundary = readJson(BOUNDARY_FILE, null);
+    const nests = readJson(NESTS_FILE, []);
+    if (!boundary?.points?.length) {
+      return res
+        .status(500)
+        .json({ detail: "Boundary file missing or invalid." });
+    }
+
+    // 3) optional environment fusion (reuse your existing block)
+    let environment = null;
+    let envScore = 0;
+    try {
+      environment = await getCurrentEnvironment();
+      envScore = environmentScore(environment);
+    } catch {
+      environment = {
+        source: "manual",
+        quality: "unknown",
+        observedAt: new Date(),
+        tide: { height_m: null, trend: "unknown", nextHighTideAt: null },
+        rain: { last3h_mm: null, next6h_mm: null },
+      };
+      envScore = 0;
+    }
+
+    const bufferPct = Number(req.query.bufferPct || 3);
+
+    // 4) evaluate per frame
+    const evaluatedFrames = [];
+    let highTriggered = false;
+    let createdAlert = null;
+
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
+      const imgW = f?.image?.w || 1920;
+      const imgH = f?.image?.h || 1080;
+
+      // px -> pct
+      let shorelinePct = (f?.shoreline_points || []).map((p) => ({
+        x: clamp((Number(p.x) / imgW) * 100, 0, 100),
+        y: clamp((Number(p.y) / imgH) * 100, 0, 100),
+        conf: p.conf ?? null,
+      }));
+
+      // cleanup polyline
+      shorelinePct = sortByX(shorelinePct);
+      shorelinePct = trimEdges(shorelinePct, 6);
+      shorelinePct = downsample(shorelinePct, 3);
+      shorelinePct = smoothY(shorelinePct, 7);
+
+      const evaluation = evaluateRisk({
+        shorelinePct,
+        boundary,
+        nests,
+        bufferPct,
+      });
+
+      // vision score (same style as your image mode)
+      const visionScore = evaluation.boundaryCrossed
+        ? 80
+        : (evaluation.nestsAtRisk?.length || 0) > 0
+          ? 60
+          : 10;
+
+      const finalScore = visionScore + envScore;
+      const finalRisk =
+        finalScore >= 80 ? "high" : finalScore >= 40 ? "medium" : "low";
+
+      // create alert once when first high happens
+      if (!highTriggered && finalRisk === "high") {
+        highTriggered = true;
+
+        const baseKey = evaluation.boundaryCrossed
+          ? "shoreline_boundary_crossed_video"
+          : "shoreline_nests_at_risk_video";
+
+        const userId = req.auth?.userId || "anon";
+        const cooldownKey = `${userId}_${baseKey}`;
+
+        createdAlert = await Alert.create({
+          type: "shoreline",
+          riskLevel: "high",
+          message: evaluation.boundaryCrossed
+            ? "Video: Shoreline crossed boundary line"
+            : "Video: Shoreline close to turtle nests",
+          status: "new",
+          source: "video_upload",
+          cooldownKey,
+          details: {
+            bufferPct,
+            boundary,
+            nests,
+            evaluation,
+            environment,
+            envScore,
+            visionScore,
+            finalScore,
+            finalRisk,
+            atTime: Number(f?.t ?? i / fps),
+          },
+        });
+
+        // realtime + email (same as image)
+        try {
+          io.emit("shoreline:new_alert", createdAlert);
+        } catch {}
+        try {
+          const userEmail = await getUserPrimaryEmail(req.auth?.userId || null);
+          await notifyIfAllowed({
+            alertDoc: createdAlert,
+            recipients: userEmail ? [userEmail] : [],
+          });
+        } catch {}
+      }
+
+      evaluatedFrames.push({
+        t: Number(f?.t ?? i / fps), // seconds
+        shorelinePct,
+        evaluation,
+        fusion: { envScore, visionScore, finalScore, finalRisk },
+        image: { w: imgW, h: imgH },
+      });
+    }
+
+    // 5) summary
+    const summary = {
+      totalFrames: evaluatedFrames.length,
+      highFrames: evaluatedFrames.filter((x) => x.fusion.finalRisk === "high")
+        .length,
+      mediumFrames: evaluatedFrames.filter(
+        (x) => x.fusion.finalRisk === "medium",
+      ).length,
+      lowFrames: evaluatedFrames.filter((x) => x.fusion.finalRisk === "low")
+        .length,
+      breachedAny: evaluatedFrames.some((x) => x.evaluation?.boundaryCrossed),
+      createdAlertId: createdAlert?._id ? String(createdAlert._id) : null,
+    };
+
+    return res.json({
+      mode: "video_upload",
+      fps,
+      bufferPct,
+      boundary,
+      nests,
+      environment,
+      summary,
+      frames: evaluatedFrames,
+    });
+  } catch (e) {
+    console.error("evaluateVideoUpload failed:", e);
+    return res
+      .status(500)
+      .json({ detail: e.message || "evaluateVideoUpload failed" });
+  } finally {
+    //  delete uploaded temp video
+    try {
+      if (req.file?.path) fs.unlinkSync(req.file.path);
+    } catch {}
   }
 }

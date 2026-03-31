@@ -433,7 +433,7 @@ function DiagnosticModal({ isOpen, onClose, onDiagnosisComplete }) {
     formData.append('file', selectedImage);
 
     try {
-      const response = await fetch(`${DISEASE_MODEL_URL}/ai/disease/classify`, {
+      const response = await fetch(getAiUrl('/ai/disease/classify'), {
         method: 'POST',
         body: formData,
       });

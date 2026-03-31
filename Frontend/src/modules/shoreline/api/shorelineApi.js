@@ -123,9 +123,7 @@ export async function predictDemoVideo(name = "shoreline_demo.mp4") {
   return json;
 }
 
-// ---------------------
-// Alerts (MongoDB)
-// ---------------------
+
 export async function getAlerts(limit = 50, page = 1) {
   const url = `${API_BASE}/api/shoreline/alerts?limit=${limit}&page=${page}`;
   const res = await fetch(url);
@@ -184,5 +182,22 @@ export async function saveManualEnvironment(payload) {
     throw new Error(
       json?.detail || text || "Failed to save manual environment",
     );
+  return json;
+}
+
+export async function evaluateVideo(file, bufferPct = 3, token) {
+  const form = new FormData();
+  form.append("file", file, file.name);
+
+  const url = `${API_BASE}/api/shoreline/evaluate-video?bufferPct=${bufferPct}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: form,
+  });
+
+  const { json, text } = await safeBody(res);
+  if (!res.ok)
+    throw new Error(json?.detail || text || "Video evaluation failed");
   return json;
 }

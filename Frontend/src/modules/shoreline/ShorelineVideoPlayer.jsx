@@ -1,13 +1,6 @@
-// ShorelineVideoPlayer.jsx
 import React, { useEffect, useRef } from "react";
+import { COLORS } from "./Shorelinetheme.jsx";
 
-/**
- * Props:
- * - src: video url (object URL)
- * - frameSeriesPct: [{ t, shorelinePct: [{x,y}], risk }]
- * - onTimeShoreline: (pts) => void
- * - videoRef: ref from parent (optional)
- */
 export default function ShorelineVideoPlayer({
   src,
   frameSeriesPct = [],
@@ -16,39 +9,60 @@ export default function ShorelineVideoPlayer({
 }) {
   const localVideoRef = useRef(null);
   const canvasRef = useRef(null);
-
   const vref = videoRef || localVideoRef;
 
-  const drawPolyline = (pts) => {
+  function riskColor(risk) {
+    if (risk === "high") return COLORS.danger;
+    if (risk === "medium") return COLORS.warning;
+    return COLORS.info;
+  }
+
+  const drawPolyline = (pts, risk = "low") => {
     const v = vref.current;
     const c = canvasRef.current;
     if (!v || !c) return;
 
     const ctx = c.getContext("2d");
-
-    // match canvas to displayed video size
     const w = v.clientWidth;
     const h = v.clientHeight;
     if (!w || !h) return;
 
     c.width = w;
     c.height = h;
-
     ctx.clearRect(0, 0, w, h);
 
     if (!pts || pts.length < 2) return;
 
-    ctx.beginPath();
-    for (let i = 0; i < pts.length; i++) {
-      const x = (pts[i].x / 100) * w;
-      const y = (pts[i].y / 100) * h;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
+    const color = riskColor(risk);
 
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(0, 120, 255, 0.95)";
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const x = (p.x / 100) * w;
+      const y = (p.y / 100) * h;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = `${color}40`;
     ctx.stroke();
+
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const x = (p.x / 100) * w;
+      const y = (p.y / 100) * h;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+
+    pts.forEach((p) => {
+      if (p.conf != null && p.conf < 0.7) {
+        ctx.beginPath();
+        ctx.arc((p.x / 100) * w, (p.y / 100) * h, 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#f59e0bcc";
+        ctx.fill();
+      }
+    });
   };
 
   const pickNearestFrame = (t) => {
@@ -67,41 +81,44 @@ export default function ShorelineVideoPlayer({
     const onTimeUpdate = () => {
       const frame = pickNearestFrame(v.currentTime);
       const pts = frame?.shorelinePct || [];
-
-      // update parent map
       onTimeShoreline?.(pts);
-
-      // draw overlay
-      drawPolyline(pts);
+      drawPolyline(pts, frame?.risk);
     };
 
     const onResize = () => {
       const frame = pickNearestFrame(v.currentTime);
-      drawPolyline(frame?.shorelinePct || []);
+      drawPolyline(frame?.shorelinePct || [], frame?.risk);
     };
 
     v.addEventListener("timeupdate", onTimeUpdate);
     v.addEventListener("play", onTimeUpdate);
+    v.addEventListener("loadedmetadata", onTimeUpdate);
     window.addEventListener("resize", onResize);
-
-    // draw once after metadata loads (so sizes exist)
-    const onLoaded = () => onTimeUpdate();
-    v.addEventListener("loadedmetadata", onLoaded);
 
     return () => {
       v.removeEventListener("timeupdate", onTimeUpdate);
       v.removeEventListener("play", onTimeUpdate);
-      v.removeEventListener("loadedmetadata", onLoaded);
+      v.removeEventListener("loadedmetadata", onTimeUpdate);
       window.removeEventListener("resize", onResize);
     };
   }, [frameSeriesPct, onTimeShoreline]);
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden border bg-black">
-      <video ref={vref} src={src} controls className="w-full h-auto block" />
+    <div className="relative w-full overflow-hidden rounded-2xl border border-[#dbe7f3] bg-black shadow-sm">
+      <video
+        ref={vref}
+        src={src}
+        controls
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="block h-auto w-full"
+      />
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 pointer-events-none"
+        className="pointer-events-none absolute inset-0"
+        style={{ width: "100%", height: "100%" }}
       />
     </div>
   );
