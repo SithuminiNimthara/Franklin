@@ -1,4 +1,5 @@
-const PY_INFER_URL = process.env.AI_SERVICE_URL || "http://localhost:9000";
+const PY_INFER_URL =
+  process.env.AI_SERVICE_URL || "http://127.0.0.1:8000/ai/shoreline";
 
 export async function predictViaPython(buffer, filename, mimetype) {
   const form = new FormData();
@@ -9,9 +10,10 @@ export async function predictViaPython(buffer, filename, mimetype) {
 
   form.append("file", blob, filename || "image.jpg");
 
+  // ✅ IMPORTANT: correct endpoint
   const res = await fetch(`${PY_INFER_URL}/predict`, {
     method: "POST",
-    body: form, // ❌ do NOT set headers
+    body: form,
   });
 
   const text = await res.text();

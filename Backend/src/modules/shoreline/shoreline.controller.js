@@ -33,7 +33,8 @@ import { environmentScore } from "./services/environmentRisk.service.js";
 import { notifyIfAllowed } from "./services/shorelineNotify.service.js";
 
 // ✅ python base url
-const PY_INFER_URL = process.env.PY_INFER_URL || "http://localhost:9000";
+const PY_INFER_URL =
+  process.env.PY_INFER_URL || "http://127.0.0.1:8000/ai/shoreline";
 
 // ✅ resolve this module directory (ESM-safe)
 const __filename = fileURLToPath(import.meta.url);

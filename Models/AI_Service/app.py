@@ -6,11 +6,15 @@ import cv2
 import requests
 import time
 import asyncio
+from tempfile import NamedTemporaryFile
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------------------
 # App Initialization
@@ -74,8 +78,27 @@ hatchery_engine = None
 @app.on_event("startup")
 async def startup_event():
     print("✅ Franklin AI Service starting...")
-    # Fast startup! We don't load models here.
 
+    try:
+        hatchery = get_hatchery()
+
+        test_video_dir = os.path.join(BASE_DIR, "test_videos")
+        demo_sources = {
+            "tankA": os.path.join(test_video_dir, "tankA.mov"),
+            "tankB": os.path.join(test_video_dir, "tankB.mov"),
+            "tankC": os.path.join(test_video_dir, "tankC.mov"),
+            "tankD": os.path.join(test_video_dir, "tankD.mov"),
+        }
+
+        for vid, path in demo_sources.items():
+            if os.path.exists(path):
+                hatchery.register_video(vid, path)
+                print(f"✅ Registered {vid}: {path}")
+            else:
+                print(f"⚠️ Missing demo video for {vid}: {path}")
+
+    except Exception as e:
+        print(f"⚠️ Hatchery startup registration failed: {e}")
 # ---------------------------
 # Weight downloader
 # ---------------------------
@@ -166,7 +189,13 @@ def root():
     return {
         "service": "Franklin AI Service", 
         "status": "online",
-        "endpoints": ["/health", "/ai/unified/analyze", "/ai/shoreline/predict", "/ai/hatchery/register_upload"]
+        "endpoints": [
+            "/health",
+            "/ai/unified/analyze",
+            "/ai/shoreline/predict",
+            "/ai/shoreline/predict-video",
+            "/ai/hatchery/register_upload"
+        ]
     }
 
 @app.get("/health")
@@ -253,7 +282,8 @@ def stream_unified(source: str):
 
             # Encode with slightly lower quality for faster transmission
             ok, buf = cv2.imencode(".jpg", display_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-            if not ok: continue
+            if not ok:
+                continue
 
             yield (
                 b"--frame\r\n"
@@ -311,8 +341,10 @@ async def predict_shoreline(file: UploadFile = File(...)):
         ys = [y for y in ys if y is not None]
         if ys:
             avg = float(np.mean(ys))
-            if avg < h * 0.35: risk_level = "high"
-            elif avg < h * 0.55: risk_level = "medium"
+            if avg < h * 0.35:
+                risk_level = "high"
+            elif avg < h * 0.55:
+                risk_level = "medium"
 
     return {
         "shoreline_points": pts,
@@ -322,6 +354,106 @@ async def predict_shoreline(file: UploadFile = File(...)):
         "mask_png_b64": mask_b64,
         "image": {"w": img.shape[1], "h": img.shape[0]},
     }
+
+@app.post("/ai/shoreline/predict-video")
+async def predict_shoreline_video(file: UploadFile = File(...)):
+    shore = get_shoreline()
+    content = await file.read()
+
+    if not content:
+        raise HTTPException(400, "Empty file received.")
+
+    suffix = ".mp4"
+    if file.filename and "." in file.filename:
+        suffix = "." + file.filename.split(".")[-1].lower()
+
+    tmp_path = None
+    try:
+        with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        cap = cv2.VideoCapture(tmp_path)
+        if not cap.isOpened():
+            raise HTTPException(400, "Invalid video or unsupported codec.")
+
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        sample_every = max(1, int(fps // 2))
+
+        frames_out = []
+        idx = 0
+
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+
+            if idx % sample_every == 0:
+                img_h, img_w = frame.shape[:2]
+
+                try:
+                    shoreline_points, shoreline_conf, mask_png_b64 = shore.predict(frame)
+
+                    ys = [p.get("y") for p in shoreline_points if isinstance(p, dict) and "y" in p]
+                    ys = [y for y in ys if y is not None]
+
+                    risk_level = "low"
+                    notes = ["Shoreline detected."]
+                    if ys:
+                        avg = float(np.mean(ys))
+                        if avg < img_h * 0.35:
+                            risk_level = "high"
+                            notes = ["Shoreline detected closer inland (high runup)."]
+                        elif avg < img_h * 0.55:
+                            risk_level = "medium"
+                            notes = ["Moderate shoreline position."]
+                    elif not shoreline_points:
+                        risk_level = "medium"
+                        notes = ["No shoreline detected; using conservative risk."]
+
+                except Exception as e:
+                    shoreline_points, shoreline_conf, mask_png_b64 = [], 0.0, ""
+                    risk_level, notes = "medium", [f"Inference error at frame {idx}: {str(e)}"]
+
+                t = idx / float(fps if fps > 0 else 25.0)
+
+                frames_out.append({
+                    "t": float(t),
+                    "shoreline_points": shoreline_points,
+                    "shoreline_conf": float(shoreline_conf),
+                    "mask_png_b64": mask_png_b64,
+                    "risk_level": risk_level,
+                    "notes": notes,
+                    "image": {"w": int(img_w), "h": int(img_h)},
+                    "frame_index": int(idx),
+                })
+
+                if len(frames_out) >= 300:
+                    break
+
+            idx += 1
+
+        cap.release()
+
+        return {
+            "mode": "video",
+            "video": {
+                "filename": file.filename,
+                "content_type": file.content_type,
+            },
+            "fps": float(fps),
+            "total_frames": int(total_frames),
+            "sample_every": int(sample_every),
+            "frames": frames_out,
+        }
+
+    finally:
+        try:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
 
 @app.post("/ai/hatchery/register_upload")
 async def register_hatchery(request: Request):
@@ -342,7 +474,8 @@ def stream_hatchery(video_id: str):
     
     def iter_frames():
         src = hatchery.video_sources.get(video_id)
-        if not src: return
+        if not src:
+            return
         
         cap = cv2.VideoCapture(src)
         fps = cap.get(cv2.CAP_PROP_FPS) or 30
