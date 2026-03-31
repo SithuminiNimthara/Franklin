@@ -18,10 +18,17 @@ export const getMyProfile = async (req, res) => {
                 clerkUserId: userId,
                 email: clerkUser.emailAddresses[0]?.emailAddress || '',
                 displayName: clerkUser.firstName ? `${clerkUser.firstName} ${clerkUser.lastName}` : clerkUser.username,
-                username: clerkUser.username || ''
+                username: clerkUser.username || '',
+                lastLoginAt: new Date(), 
             });
 
             console.log('[Profile] Default profile created successfully');
+        } else {
+          
+            await Profile.updateOne(
+                { clerkUserId: userId },
+                { $set: { lastLoginAt: new Date() } }
+            );
         }
 
         res.json(profile);
