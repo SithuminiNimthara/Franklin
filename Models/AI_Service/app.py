@@ -61,11 +61,56 @@ WEIGHT_URLS = {
 }
 
 MODEL_PATHS = {
-    "unified_turtle": os.path.join(MODELS_DIR, "unified_turtle.pt"),
-    "unified_predator": os.path.join(MODELS_DIR, "unified_predator.pt"),
-    "shoreline": os.path.join(MODELS_DIR, "shoreline_seg.pt"),
+    "unified_turtle": os.path.join(MODELS_DIR, "turtle.pt"),
+    "unified_predator": os.path.join(MODELS_DIR, "predator.pt"),
+    "shoreline": os.path.join(MODELS_DIR, "shoreline_seg_v8_best.pt"),
     "hatchery": os.path.join(MODELS_DIR, "hatchery_best.pt"),
 }
+# ---------------------------
+# Disease config
+# ---------------------------
+DISABLE_DISEASE = os.environ.get("DISABLE_DISEASE", "true").strip().lower() in (
+    "1", "true", "yes", "on"
+)
+
+def get_disease_disabled():
+    return JSONResponse(
+        status_code=503,
+        content={"message": "Disease model is currently disabled in this lightweight deployment."}
+    )
+
+def get_disease():
+    raise HTTPException(503, "Disease model is disabled or not configured.")
+
+
+# ---------------------------
+# Weight downloader
+# ---------------------------
+def ensure_weight_exists(model_key):
+    path = MODEL_PATHS.get(model_key)
+    if not path:
+        return False
+
+    if os.path.exists(path) and os.path.getsize(path) > 1024:
+        return True
+
+    url = WEIGHT_URLS.get(model_key)
+    if not url:
+        print(f"⚠️ Model weight missing: {model_key}")
+        return False
+
+    print(f"⬇️ Downloading weight for {model_key}")
+    try:
+        r = requests.get(url, stream=True, timeout=30)
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(8192):
+                f.write(chunk)
+        print(f"✅ Downloaded: {model_key}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed: {model_key} → {e}")
+        return False
 
 # Lazy instances (Render-safe)
 
@@ -118,7 +163,7 @@ async def background_warmup():
         test_vid_dir = os.path.join(BASE_DIR, "test_videos")
         print(f"📂 Checking test videos in: {test_vid_dir}")
 
-        for tank_id in ["tankA", "tankF", "tankC", "tankE"]:
+        for tank_id in ["tankA", "tankB", "tankC", "tankD"]:
             # Keep your existing .mov, but allow mp4 fallback too
             mov_path = os.path.join(test_vid_dir, f"{tank_id}.mov")
             mp4_path = os.path.join(test_vid_dir, f"{tank_id}.mp4")
@@ -266,7 +311,7 @@ def root():
 @app.post("/ai/unified/analyze")
 async def analyze_unified(request: Request, file: UploadFile = File(...)):
     processor = get_unified()
-    
+
     vid_id = uuid.uuid4().hex
     filename = f"{vid_id}.mp4"
     path = os.path.join(OUTPUT_DIR, filename)
@@ -275,14 +320,14 @@ async def analyze_unified(request: Request, file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, f)
 
     try:
-        result = unified.process_video(path, filename)
+        result = processor.process_video(path, filename)
 
         base_url = AI_SERVICE_URL or str(request.base_url).rstrip("/")
         result["video_url"] = f"{base_url}/content/{filename}"
         return result
     except Exception as e:
+        print(f"Unified analyze failed: {e}")
         raise HTTPException(500, str(e))
-
 
 @app.get("/ai/unified/stream")
 def stream_unified(source: str):
@@ -514,6 +559,24 @@ async def predict_shoreline_video(file: UploadFile = File(...)):
             "frames": frames_out,
         }
 
+        return {
+            "mode": "video",
+            "video": {
+                "filename": file.filename,
+                "content_type": file.content_type,
+            },
+            "fps": float(fps),
+            "total_frames": int(total_frames),
+            "sample_every": int(sample_every),
+            "frames": frames_out,
+        }
+
+    except Exception as e:
+        raise HTTPException(500, f"Video processing failed: {str(e)}")
+
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
 # HATCHERY ENDPOINTS
 
 @app.post("/ai/hatchery/register_upload")
