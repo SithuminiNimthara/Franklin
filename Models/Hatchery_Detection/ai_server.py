@@ -16,7 +16,7 @@ CORS(app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "best.pt")
 VIDEO_DIR = os.path.join(BASE_DIR, "test_videos")
-NODE_API_URL = os.environ.get("NODE_API_URL", "http://localhost:5002/api/hatchery")
+NODE_API_URL = os.environ.get("NODE_API_URL", "http://localhost:5002")
 
 # CONSTANTS
 PIXELS_PER_CM = 25.0
@@ -423,7 +423,7 @@ class VideoController:
         """Update MongoDB with analysis results for uploaded videos"""
         try:
             response = requests.post(
-                f"{NODE_API_URL}/video/{video_id}/analysis",
+                f"{NODE_API_URL}/api/hatchery/video/{video_id}/analysis",
                 json={
                     "species": species,
                     "behavior": behavior,

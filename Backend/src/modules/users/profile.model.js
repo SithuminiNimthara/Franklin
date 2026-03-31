@@ -8,6 +8,7 @@ const ProfileSchema = new mongoose.Schema({
     phone: { type: String },
     station: { type: String },
     role: { type: String, default: 'Member' },
+    lastLoginAt: { type: Date, default: null },
     notifications: {
         email: { type: Boolean, default: true },
         sms: { type: Boolean, default: false },
