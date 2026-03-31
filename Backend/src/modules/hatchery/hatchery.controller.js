@@ -5,7 +5,6 @@ import { fileURLToPath } from "url";
 import { HatcheryVideo, HatcheryAlert } from "./hatchery.models.js";
 import { sendAlertToActiveUsers } from "./hatchery.alerts.controller.js";
 
-
 import { config } from "../../config/env.js";
 
 // Helper to get root directory
@@ -50,7 +49,9 @@ export const updateVideoAnalysis = async (req, res) => {
 export const getTankStats = async (req, res) => {
   const { tankId } = req.params;
   try {
-    const response = await axios.get(`${config.models.hatchery}/ai/hatchery/data/${tankId}`);
+    const response = await axios.get(
+      `${config.models.hatchery}/ai/hatchery/data/${tankId}`,
+    );
     res.json(response.data);
   } catch (error) {
     console.error("Error fetching tank stats:", error.message);
@@ -72,12 +73,15 @@ export const streamHatchery = async (req, res) => {
     res.setHeader("Content-Type", response.headers["content-type"]);
     response.data.pipe(res);
   } catch (error) {
-    console.error(`Error proxying hatchery stream for ${tankId}:`, error.message);
+    console.error(
+      `Error proxying hatchery stream for ${tankId}:`,
+      error.message,
+    );
     res.status(500).send("Stream error");
   }
 };
 
-// Upload video
+//upload a video footage
 export const uploadFootage = async (req, res) => {
   try {
     if (!req.file) {
@@ -85,10 +89,12 @@ export const uploadFootage = async (req, res) => {
     }
 
     const PORT = process.env.PORT || 5002;
-    const BACKEND_URL = process.env.NODE_BACKEND_URL || `http://localhost:${PORT}/api`;
+    const BACKEND_URL =
+      process.env.NODE_BACKEND_URL || `http://localhost:${PORT}/api`;
     const videoUrl = `${BACKEND_URL}/hatchery/video/${req.file.filename}`;
 
-    // 1. Save DB entry
+    const localFilePath = path.resolve(req.file.path);
+
     const newVideo = new HatcheryVideo({
       filename: req.file.filename,
       originalName: req.file.originalname,
@@ -102,21 +108,18 @@ export const uploadFootage = async (req, res) => {
 
     await newVideo.save();
 
-    // 2. Register video with Python AI
+    // Send localFilePath
     await axios.post(`${config.models.hatchery}/ai/hatchery/register_upload`, {
       videoId: `upload_${newVideo._id}`,
-      videoPath: videoUrl,
+      videoPath: localFilePath,
     });
 
-    // 3. Respond to frontend
     res.status(201).json({
       message: "Upload successful",
       videoId: newVideo._id,
       streamUrl: `${config.models.hatchery}/ai/hatchery/stream/upload_${newVideo._id}`,
       rawVideoUrl: videoUrl,
     });
-
-    // console.log(`Video uploaded: ${newVideo.originalName}`);
   } catch (error) {
     console.error("Upload Controller Error:", error.message);
     res.status(500).json({ message: "Server error during upload" });
@@ -148,7 +151,9 @@ export const saveAlert = async (req, res) => {
     // 2. Send email (non-blocking, will not break API response)
     sendAlertToActiveUsers(alert)
       .then((count) => console.log(`Alert emails sent to ${count} user(s)`))
-      .catch((err) => console.error("Email failed (non-critical):", err.message));
+      .catch((err) =>
+        console.error("Email failed (non-critical):", err.message),
+      );
 
     // 3. Respond IMMEDIATELY (frontend expects this)
     res.status(201).json({ success: true, data: alert });
@@ -160,17 +165,32 @@ export const saveAlert = async (req, res) => {
 
 // Get all alerts (Past & Present)
 export const getAlerts = async (req, res) => {
-
   try {
-    const alerts = await HatcheryAlert.find().sort({ createdAt: -1 });
-    //console.log(`Returning ${alerts.length} alerts`);  
+    const { startDate, endDate } = req.query;
+
+    const filter = {};
+
+    // If date range provided, filter by it — otherwise default to today
+    if (startDate && endDate) {
+      filter.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    } else {
+      // Default: today only
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+      filter.createdAt = { $gte: start, $lte: end };
+    }
+
+    const alerts = await HatcheryAlert.find(filter).sort({ createdAt: -1 });
     res.json(alerts);
   } catch (error) {
-    //console.error("getAlerts failed:", error);
     res.status(500).json({ error: "Failed to fetch alerts" });
   }
 };
-
 // Resolve or acknowledge an alert
 export const updateAlertStatus = async (req, res) => {
   try {
@@ -183,7 +203,9 @@ export const updateAlertStatus = async (req, res) => {
         status: status,
         notes: notes || "",
         resolvedBy: resolvedBy || "Unknown User",
-        resolvedAt: status === "resolved" ? new Date() : null,
+
+        resolvedAt:
+          status === "fixed" || status === "resolved" ? new Date() : null,
       },
       { new: true },
     );
@@ -192,7 +214,6 @@ export const updateAlertStatus = async (req, res) => {
       return res.status(404).json({ message: "Alert not found" });
     }
 
-    // console.log(`Alert ${alertId} updated to: ${status}`);
     res.json({ success: true, data: updatedAlert });
   } catch (error) {
     console.error("Error updating alert:", error);
@@ -200,7 +221,7 @@ export const updateAlertStatus = async (req, res) => {
   }
 };
 
-// // Delete/archive old resolved alerts (optional cleanup)
+//delete an alert
 // export const deleteAlert = async (req, res) => {
 //   try {
 //     const { alertId } = req.params;
@@ -219,7 +240,7 @@ export const generateHatcheryReport = async (req, res) => {
     const { startDate, endDate } = req.query;
 
     // Fetch data from all 4 tanks
-    const tankIds = ["tankA", "tankB", "tankC", "tankD"];
+    const tankIds = ["tankA", "tankF", "tankC", "tankE"];
     const tankDataPromises = tankIds.map((tankId) =>
       axios
         .get(`${config.models.hatchery}/ai/hatchery/data/${tankId}`)

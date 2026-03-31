@@ -52,7 +52,7 @@ export default function TankVideoCard({ tankId, tankLabel }) {
               <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">
                 Species
               </span>
-              <span className="text-sm font-black text-gray-900 dark:text-white">
+              <span className="text-sm font-semibold text-black dark:text-white">
                 {data.species}
               </span>
             </div>
@@ -61,15 +61,15 @@ export default function TankVideoCard({ tankId, tankLabel }) {
               <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">
                 Behavior
               </span>
-              <span className="text-sm font-black text-gray-800 dark:text-white">
+              <span className="text-sm font-semibold text-black dark:text-white">
                 {data.status}
               </span>
             </div>
           </div>
 
-          <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border">
-            <HealthIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-xs font-black tracking-widest text-emerald-700 dark:text-emerald-300">
+          <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20">
+            {/* <HealthIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> */}
+            <span className="text-sm font-semibold text-green-600 dark:text-emerald-300">
               Condition: {data.health}
             </span>
           </div>

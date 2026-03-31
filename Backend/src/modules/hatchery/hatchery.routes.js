@@ -4,12 +4,9 @@ import * as hatcheryController from "./hatchery.controller.js";
 import * as alertsController from "./hatchery.alerts.controller.js";
 import multer from "multer";
 import { clerkMiddleware, requireAuth } from "@clerk/express";
+import { HatcheryVideo, HatcheryAlert } from "./hatchery.models.js";
 
 const router = express.Router();
-
-// Apply Clerk middleware only if you really need it globally.
-// If Python calls /alerts/new with no auth, do NOT block it.
-// router.use(clerkMiddleware()); // Removed this to fix 401 Unauthorized on getAlerts
 
 // Multer configuration
 const storage = multer.diskStorage({
@@ -41,7 +38,7 @@ const upload = multer({
   limits: { fileSize: 500 * 1024 * 1024 },
 });
 
-// MAIN HATCHERY ROUTES
+// Main hatchery routes
 router.post(
   "/upload",
   //requireAuth(),
