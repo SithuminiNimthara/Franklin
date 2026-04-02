@@ -19,11 +19,11 @@ import EnvironmentManualForm from "../shoreline/EnvironmentManualForm.jsx";
 import { COLORS, SectionHeader, LiveDot, Panel } from "./Shorelinetheme.jsx";
 import {
   getBoundary,
-  getNests,
   getAlerts,
   predictDemoVideo,
   evaluateVideo,
 } from "./api/shorelineApi.js";
+import { MOCK_NESTS } from "../../shared/data/mockNests";
 
 import { useAuth } from "@clerk/clerk-react";
 
@@ -100,10 +100,22 @@ function StatCard({
   );
 }
 
+function buildSharedNestState() {
+  return MOCK_NESTS.map((item) => ({
+    id: item.nestNo,
+    x: item.x,
+    y: item.y,
+    zone: item.locationName,
+    label: item.locationName,
+    status: item.status || "safe",
+    distanceToShoreline: null,
+  }));
+}
+
 export default function ShorelineRiskPage() {
   const [boundary, setBoundary] = useState([]);
   const [shoreline, setShoreline] = useState([]);
-  const [nests, setNests] = useState([]);
+  const [nests, setNests] = useState(buildSharedNestState());
   const [alerts, setAlerts] = useState([]);
   const [crossedBoundary, setCrossedBoundary] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -126,23 +138,10 @@ export default function ShorelineRiskPage() {
 
   const loadStatic = async () => {
     try {
-      const [b, n, a] = await Promise.all([
-        getBoundary(),
-        getNests(),
-        getAlerts(),
-      ]);
+      const [b, a] = await Promise.all([getBoundary(), getAlerts()]);
 
       setBoundary(b?.points || []);
-      setNests(
-        (n || []).map((item) => ({
-          id: item.id,
-          x: item.x,
-          y: item.y,
-          zone: item.label,
-          status: "safe",
-          distanceToShoreline: null,
-        })),
-      );
+      setNests(buildSharedNestState());
 
       const items = Array.isArray(a?.items)
         ? a.items
@@ -203,6 +202,23 @@ export default function ShorelineRiskPage() {
     })();
   }, []);
 
+  const applyEvaluationToNests = (evaluation) => {
+    const riskMap = new Map(
+      (evaluation?.nestsEvaluated || []).map((n) => [n.id, n.distancePct]),
+    );
+
+    setNests((prev) =>
+      prev.map((n) => {
+        const d = riskMap.get(n.id);
+        return {
+          ...n,
+          distanceToShoreline: d ?? null,
+          status: nestStatusFromDistance(d),
+        };
+      }),
+    );
+  };
+
   const runVideoEvaluation = async (file) => {
     setLoading(true);
     try {
@@ -212,6 +228,7 @@ export default function ShorelineRiskPage() {
       setVideoUrl(objectUrl);
       setFrameSeriesPct([]);
       setCrossedBoundary(false);
+      setNests(buildSharedNestState());
 
       const data = await evaluateVideo(file, 3, token);
 
@@ -226,25 +243,13 @@ export default function ShorelineRiskPage() {
 
       setFrameSeriesPct(series);
 
-      if (series[0]?.shorelinePct) setShoreline(series[0].shorelinePct);
+      if (series[0]?.shorelinePct) {
+        setShoreline(series[0].shorelinePct);
+      }
 
       const firstEval = series[0]?.evaluation;
       setCrossedBoundary(Boolean(firstEval?.boundaryCrossed));
-
-      const riskMap = new Map(
-        (firstEval?.nestsEvaluated || []).map((n) => [n.id, n.distancePct]),
-      );
-
-      setNests((prev) =>
-        prev.map((n) => {
-          const d = riskMap.get(n.id);
-          return {
-            ...n,
-            distanceToShoreline: d,
-            status: nestStatusFromDistance(d),
-          };
-        }),
-      );
+      applyEvaluationToNests(firstEval);
 
       setLastUpdated(new Date().toLocaleTimeString());
 
@@ -282,24 +287,10 @@ export default function ShorelineRiskPage() {
       if (!frame) return;
 
       setShoreline(frame.shorelinePct || []);
-      const ev = frame.evaluation;
 
-      if (ev) {
-        setCrossedBoundary(Boolean(ev.boundaryCrossed));
-        const riskMap = new Map(
-          (ev.nestsEvaluated || []).map((n) => [n.id, n.distancePct]),
-        );
-
-        setNests((prev) =>
-          prev.map((n) => {
-            const d = riskMap.get(n.id);
-            return {
-              ...n,
-              distanceToShoreline: d,
-              status: nestStatusFromDistance(d),
-            };
-          }),
-        );
+      if (frame.evaluation) {
+        setCrossedBoundary(Boolean(frame.evaluation.boundaryCrossed));
+        applyEvaluationToNests(frame.evaluation);
       }
     };
 
@@ -476,9 +467,9 @@ export default function ShorelineRiskPage() {
                       AI Tracking Process
                     </p>
                     <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
-                      Shoreline contours are detected frame by frame and
-                      evaluated against protected boundary lines and nest
-                      proximity thresholds.
+                      Shoreline movement is evaluated against the safety
+                      boundary, and nests are highlighted when they move into
+                      warning or critical range.
                     </p>
                   </div>
                 </div>
