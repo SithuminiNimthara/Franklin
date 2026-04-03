@@ -12,59 +12,84 @@ import {
 } from "lucide-react";
 
 import {
-  getAlerts,
-  acknowledgeAlert,
-  resolveAlert,
-} from "./api/shorelineApi.js";
-import { COLORS, SectionHeader } from "./Shorelinetheme.jsx";
+  fetchAlerts,
+  acknowledgeShorelineAlert,
+  resolveShorelineAlert,
+} from "../api/shoreline.api.js";
+import {
+  SHORELINE_COLORS,
+  SectionHeader,
+} from "../constants/shorelineTheme.jsx";
+
+const ALERT_REFRESH_INTERVAL_MS = 10000;
 
 function RiskBadge({ risk }) {
-  const map = {
-    high: { color: COLORS.danger, bg: COLORS.dangerSoft, label: "HIGH" },
-    medium: { color: COLORS.warning, bg: COLORS.warningSoft, label: "MEDIUM" },
-    low: { color: COLORS.success, bg: COLORS.successSoft, label: "LOW" },
+  const riskStyleMap = {
+    high: {
+      color: SHORELINE_COLORS.danger,
+      background: SHORELINE_COLORS.dangerSoft,
+      label: "HIGH",
+    },
+    medium: {
+      color: SHORELINE_COLORS.warning,
+      background: SHORELINE_COLORS.warningSoft,
+      label: "MEDIUM",
+    },
+    low: {
+      color: SHORELINE_COLORS.success,
+      background: SHORELINE_COLORS.successSoft,
+      label: "LOW",
+    },
   };
 
-  const { color, bg, label } = map[risk] || map.low;
+  const config = riskStyleMap[risk] || riskStyleMap.low;
 
   return (
     <span
       className="rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wider"
-      style={{ backgroundColor: bg, color }}
+      style={{ backgroundColor: config.background, color: config.color }}
     >
-      {label}
+      {config.label}
     </span>
   );
 }
 
 function StatusBadge({ status }) {
-  const map = {
-    new: { color: COLORS.danger, bg: COLORS.dangerSoft, label: "NEW" },
+  const statusStyleMap = {
+    new: {
+      color: SHORELINE_COLORS.danger,
+      background: SHORELINE_COLORS.dangerSoft,
+      label: "NEW",
+    },
     acknowledged: {
-      color: COLORS.warning,
-      bg: COLORS.warningSoft,
+      color: SHORELINE_COLORS.warning,
+      background: SHORELINE_COLORS.warningSoft,
       label: "ACK",
     },
-    resolved: { color: COLORS.success, bg: COLORS.successSoft, label: "DONE" },
+    resolved: {
+      color: SHORELINE_COLORS.success,
+      background: SHORELINE_COLORS.successSoft,
+      label: "DONE",
+    },
   };
 
-  const { color, bg, label } = map[status] || map.new;
+  const config = statusStyleMap[status] || statusStyleMap.new;
 
   return (
     <span
       className="rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wider"
-      style={{ backgroundColor: bg, color }}
+      style={{ backgroundColor: config.background, color: config.color }}
     >
-      {label}
+      {config.label}
     </span>
   );
 }
 
-function Chip({ icon: Icon, label, color, bg }) {
+function InfoChip({ icon: Icon, label, color, background }) {
   return (
     <div
       className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-medium"
-      style={{ backgroundColor: bg, color }}
+      style={{ backgroundColor: background, color }}
     >
       <Icon size={10} />
       {label}
@@ -72,12 +97,12 @@ function Chip({ icon: Icon, label, color, bg }) {
   );
 }
 
-function ActionBtn({ disabled, onClick, colorClass, label }) {
+function ActionButton({ disabled, onClick, className, label }) {
   return (
     <button
       disabled={disabled}
       onClick={onClick}
-      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${colorClass} ${
+      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${className} ${
         disabled ? "cursor-not-allowed opacity-50" : "hover:shadow-sm"
       }`}
     >
@@ -92,17 +117,21 @@ function formatNestList(nestsAtRisk = []) {
   }
 
   return nestsAtRisk
-    .map((n) => {
-      const label = n.label || n.id || "Unknown nest";
+    .map((nest) => {
+      const label = nest.label || nest.id || "Unknown nest";
       const distance =
-        n.distancePct != null ? ` (${Number(n.distancePct).toFixed(2)}%)` : "";
+        nest.distancePct != null
+          ? ` (${Number(nest.distancePct).toFixed(2)}%)`
+          : "";
+
       return `${label}${distance}`;
     })
     .join(", ");
 }
 
-function AlertCard({ alert: a, onAck, onResolve, busy }) {
-  const details = a.details || {};
+function AlertCard({ alertItem, onAcknowledge, onResolve, isBusy }) {
+  const details = alertItem.details || {};
+
   const boundaryCrossed =
     details.boundaryCrossed ?? details.evaluation?.boundaryCrossed ?? false;
 
@@ -129,52 +158,58 @@ function AlertCard({ alert: a, onAck, onResolve, busy }) {
     <div className="space-y-4 rounded-xl border border-[#e2e8f0] bg-[#fcfdff] p-4 transition-all hover:shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <RiskBadge risk={a.riskLevel} />
-          <StatusBadge status={a.status} />
+          <RiskBadge risk={alertItem.riskLevel} />
+          <StatusBadge status={alertItem.status} />
         </div>
 
         <div className="flex items-center gap-1.5 text-slate-500">
           <Clock size={11} />
           <span className="text-[10px]">
-            {new Date(a.createdAt).toLocaleString()}
+            {new Date(alertItem.createdAt).toLocaleString()}
           </span>
         </div>
       </div>
 
       <div>
         <p className="text-sm font-semibold leading-snug text-slate-800">
-          {a.message}
+          {alertItem.message}
         </p>
         <p className="mt-1 text-xs leading-relaxed text-slate-600">{summary}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Chip
+        <InfoChip
           icon={ShieldAlert}
           label={`Boundary: ${boundaryCrossed ? "Crossed" : "Clear"}`}
-          color={boundaryCrossed ? COLORS.danger : COLORS.success}
-          bg={boundaryCrossed ? COLORS.dangerSoft : COLORS.successSoft}
+          color={
+            boundaryCrossed ? SHORELINE_COLORS.danger : SHORELINE_COLORS.success
+          }
+          background={
+            boundaryCrossed
+              ? SHORELINE_COLORS.dangerSoft
+              : SHORELINE_COLORS.successSoft
+          }
         />
 
-        <Chip
+        <InfoChip
           icon={MapPin}
           label={`${nestsAtRiskCount} nests at risk`}
-          color={COLORS.warning}
-          bg={COLORS.warningSoft}
+          color={SHORELINE_COLORS.warning}
+          background={SHORELINE_COLORS.warningSoft}
         />
 
-        <Chip
+        <InfoChip
           icon={CloudRain}
           label={`${details.environment?.rain?.last3h_mm ?? "—"} mm / 3h`}
-          color={COLORS.info}
-          bg={COLORS.infoSoft}
+          color={SHORELINE_COLORS.info}
+          background={SHORELINE_COLORS.infoSoft}
         />
 
-        <Chip
+        <InfoChip
           icon={Waves}
           label={`Tide ${details.environment?.tide?.height_m ?? "—"} m · ${details.environment?.tide?.trend ?? "unknown"}`}
           color="#6366f1"
-          bg="#eef2ff"
+          background="#eef2ff"
         />
       </div>
 
@@ -211,30 +246,30 @@ function AlertCard({ alert: a, onAck, onResolve, busy }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-x-2 text-[10px] text-slate-500">
-          {a.acknowledgedBy && (
+          {alertItem.acknowledgedBy && (
             <span>
-              Ack: <b>{a.acknowledgedBy}</b>
+              Ack: <b>{alertItem.acknowledgedBy}</b>
             </span>
           )}
-          {a.resolvedBy && (
+          {alertItem.resolvedBy && (
             <span>
-              Resolved: <b>{a.resolvedBy}</b>
+              Resolved: <b>{alertItem.resolvedBy}</b>
             </span>
           )}
         </div>
 
         <div className="flex gap-2">
-          <ActionBtn
-            disabled={a.status !== "new" || busy}
-            onClick={() => onAck(a._id)}
-            colorClass="border border-amber-200 bg-amber-50 text-amber-700"
+          <ActionButton
+            disabled={alertItem.status !== "new" || isBusy}
+            onClick={() => onAcknowledge(alertItem._id)}
+            className="border border-amber-200 bg-amber-50 text-amber-700"
             label="Acknowledge"
           />
 
-          <ActionBtn
-            disabled={a.status === "resolved" || busy}
-            onClick={() => onResolve(a._id)}
-            colorClass="border border-green-200 bg-green-50 text-green-700"
+          <ActionButton
+            disabled={alertItem.status === "resolved" || isBusy}
+            onClick={() => onResolve(alertItem._id)}
+            className="border border-green-200 bg-green-50 text-green-700"
             label="Resolve"
           />
         </div>
@@ -252,49 +287,50 @@ export default function ShorelineAlertsPanel({
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
 
-  async function refresh() {
+  async function refreshAlerts() {
     setLoading(true);
     setError("");
 
     try {
-      const data = await getAlerts(30, 1);
+      const data = await fetchAlerts(30, 1);
       setItems(data?.items || []);
-    } catch (e) {
-      setError(e.message || "Failed to load alerts");
+    } catch (err) {
+      setError(err.message || "Failed to load alerts");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    refresh();
-    const t = setInterval(refresh, 10000);
-    return () => clearInterval(t);
+    refreshAlerts();
+
+    const intervalId = setInterval(refreshAlerts, ALERT_REFRESH_INTERVAL_MS);
+    return () => clearInterval(intervalId);
   }, []);
 
-  async function onAck(id) {
+  async function handleAcknowledge(id) {
     setBusyId(id);
     setError("");
 
     try {
-      await acknowledgeAlert(id, staffName);
-      await refresh();
-    } catch (e) {
-      setError(e.message || "Acknowledge failed");
+      await acknowledgeShorelineAlert(id, staffName);
+      await refreshAlerts();
+    } catch (err) {
+      setError(err.message || "Acknowledge failed");
     } finally {
       setBusyId(null);
     }
   }
 
-  async function onResolve(id) {
+  async function handleResolve(id) {
     setBusyId(id);
     setError("");
 
     try {
-      await resolveAlert(id, staffName);
-      await refresh();
-    } catch (e) {
-      setError(e.message || "Resolve failed");
+      await resolveShorelineAlert(id, staffName);
+      await refreshAlerts();
+    } catch (err) {
+      setError(err.message || "Resolve failed");
     } finally {
       setBusyId(null);
     }
@@ -305,10 +341,10 @@ export default function ShorelineAlertsPanel({
       <SectionHeader
         icon={BadgeCheck}
         title="Active Alerts"
-        accent={COLORS.warning}
-        right={
+        accent={SHORELINE_COLORS.warning}
+        rightContent={
           <button
-            onClick={refresh}
+            onClick={refreshAlerts}
             className="inline-flex items-center gap-1.5 rounded-lg border border-[#dbe7f3] bg-white px-3 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50"
           >
             <RefreshCcw size={11} />
@@ -329,13 +365,13 @@ export default function ShorelineAlertsPanel({
         <p className="text-sm text-slate-500">No alerts found.</p>
       ) : (
         <div className="max-h-[520px] space-y-3 overflow-auto pr-1">
-          {items.map((a) => (
+          {items.map((alertItem) => (
             <AlertCard
-              key={a._id}
-              alert={a}
-              busy={busyId === a._id}
-              onAck={onAck}
-              onResolve={onResolve}
+              key={alertItem._id}
+              alertItem={alertItem}
+              isBusy={busyId === alertItem._id}
+              onAcknowledge={handleAcknowledge}
+              onResolve={handleResolve}
             />
           ))}
         </div>
