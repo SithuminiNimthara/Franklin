@@ -240,7 +240,7 @@ export const generateHatcheryReport = async (req, res) => {
     const { startDate, endDate } = req.query;
 
     // Fetch data from all 4 tanks
-    const tankIds = ["tankA", "tankF", "tankC", "tankE"];
+    const tankIds = ["tankA", "tankB", "tankC", "tankD"];
     const tankDataPromises = tankIds.map((tankId) =>
       axios
         .get(`${config.models.hatchery}/ai/hatchery/data/${tankId}`)

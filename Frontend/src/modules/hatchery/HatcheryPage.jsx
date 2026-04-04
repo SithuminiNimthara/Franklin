@@ -6,9 +6,9 @@ import HatcheryAlertList from "../../shared/components/ui/HatcheryAlertList";
 
 const tanks = [
   { id: "tankA", label: "Tank Alpha" },
-  { id: "tankF", label: "Tank Beta" },
+  { id: "tankB", label: "Tank Beta" },
   { id: "tankC", label: "Tank Gamma" },
-  { id: "tankE", label: "Tank Delta" },
+  { id: "tankD", label: "Tank Delta" },
 ];
 
 export default function HatcheryPage() {
