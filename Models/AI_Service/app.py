@@ -65,22 +65,20 @@ MODEL_PATHS = {
     "unified_predator": os.path.join(MODELS_DIR, "predator.pt"),
     "shoreline": os.path.join(MODELS_DIR, "shoreline_seg_v8_best.pt"),
     "hatchery": os.path.join(MODELS_DIR, "hatchery_best.pt"),
+    "disease": os.path.join(MODELS_DIR, "protonet_conv4_encoder.keras"),
 }
 # ---------------------------
 # Disease config
 # ---------------------------
-DISABLE_DISEASE = os.environ.get("DISABLE_DISEASE", "true").strip().lower() in (
+DISABLE_DISEASE = os.environ.get("DISABLE_DISEASE", "false").strip().lower() in (
     "1", "true", "yes", "on"
 )
 
 def get_disease_disabled():
     return JSONResponse(
         status_code=503,
-        content={"message": "Disease model is currently disabled in this lightweight deployment."}
+        content={"message": "Disease model is currently disabled in this deployment."}
     )
-
-def get_disease():
-    raise HTTPException(503, "Disease model is disabled or not configured.")
 
 
 # ---------------------------
@@ -287,6 +285,27 @@ def get_hatchery():
             print(f"Hatchery init failed: {e}")
             raise HTTPException(503, f"Hatchery engine load failed: {e}")
     return hatchery_engine
+
+def get_disease():
+    global disease_classifier
+    if disease_classifier is None:
+        path = MODEL_PATHS.get("disease")
+        # Simple existence check with fallback to dummy downloader logic if ever needed
+        if not path or not os.path.exists(path):
+            ensure_weight_exists("disease")
+            
+        if not (path and os.path.exists(path)):
+            raise HTTPException(503, "Disease model weights (protonet_conv4_encoder.keras) missing.")
+            
+        try:
+            from models.disease import DiseaseClassifier
+            # Usually needs a support set, but disease.py handles dummy if missing
+            disease_classifier = DiseaseClassifier(path)
+            print("DiseaseClassifier loaded lazily")
+        except Exception as e:
+            print(f"Disease init failed: {e}")
+            raise HTTPException(503, f"Disease model load failed: {e}")
+    return disease_classifier
 
 # ---------------------------
 # Routes
@@ -654,14 +673,6 @@ async def get_content(filename: str):
     if os.path.exists(path):
         return FileResponse(path)
     raise HTTPException(404, "Content not found.")
-
-@app.post("/ai/disease/classify")
-async def classify_disease():
-    return JSONResponse(
-        status_code=503,
-        content={"message": "Disease model is currently disabled in this lightweight deployment."}
-    )
-
 
 # Local run
 

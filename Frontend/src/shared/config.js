@@ -34,3 +34,6 @@ export const getHatcheryDataUrl = (tankId) => `${API_BASE_URL}/api/hatchery/data
 // Generic API URL builder
 export const getApiUrl = (endpoint) =>
     `${API_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
+
+export const getAiUrl = (endpoint) =>
+    `${UNIFIED_MODEL_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;

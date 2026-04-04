@@ -5,7 +5,7 @@ import DashboardCard from '../../shared/components/ui/DashboardCard';
 import Button from '../../shared/components/ui/Button';
 import GoogleMapPicker from '../../shared/components/maps/GoogleMapPicker';
 import DiseaseHotspotMap from './DiseaseHotspotMap';
-import { API_BASE_URL, DISEASE_MODEL_URL } from '../../shared/config';
+import { API_BASE_URL, DISEASE_MODEL_URL, getAiUrl } from '../../shared/config';
 
 /* ───────────────────────── Stats sidebar → now horizontal row ───────────────────────── */
 function HealthStats({ refreshTrigger }) {

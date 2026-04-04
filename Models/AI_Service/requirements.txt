@@ -6,3 +6,4 @@ numpy
 requests
 python-dotenv
 ultralytics
+tensorflow-cpu
