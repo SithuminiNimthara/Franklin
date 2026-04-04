@@ -78,7 +78,7 @@ class NotificationService {
         const { nest, detection } = threat;
         const alertData = {
             nestId: nest.details || nest._id,
-            location: `Zone: ${nest.location.zone} (${nest.location.coordinates.x.toFixed(1)}, ${nest.location.coordinates.y.toFixed(1)})`,
+            location: `${nest.location.coordinates.x.toFixed(1)}, ${nest.location.coordinates.y.toFixed(1)}`,
             time: new Date().toLocaleString(),
             threatType: detection.type,
             details: `A ${detection.type} has been near the nest for over 2 minutes.`

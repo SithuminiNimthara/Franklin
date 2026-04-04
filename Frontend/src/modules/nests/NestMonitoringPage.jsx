@@ -84,7 +84,7 @@ export default function NestMonitoringPage() {
     const timestamp = new Date();
     const alertData = {
       nestNo: nest.nestNo,
-      location: nest.locationName,
+      location: `${nest.x.toFixed(1)}, ${nest.y.toFixed(1)}`,
       time: timestamp.toLocaleTimeString('en-LK'),
       threatType,
       details: `A ${threatType} has stayed near Nest ${nest.nestNo} for over ${threatSeconds} seconds.`,
@@ -108,6 +108,7 @@ export default function NestMonitoringPage() {
           toEmail: userData.email,
           nestNo: nest.nestNo,
           zone: nest.locationName,
+          location: `${nest.x.toFixed(1)}, ${nest.y.toFixed(1)}`,
           threatType,
           timestamp: timestamp.toISOString(),
           durationSec: threatSeconds,

@@ -13,7 +13,7 @@ const transporter = nodemailer.createTransport({
 
 export const sendEmailAlert = async (req, res) => {
     try {
-        const { toEmail, nestNo, zone, threatType, timestamp, durationSec, details, confidence } = req.body;
+        const { toEmail, nestNo, zone, location, threatType, timestamp, durationSec, details, confidence } = req.body;
 
         if (!toEmail) {
             return res.status(400).json({ success: false, error: 'Recipient email is required' });
@@ -22,7 +22,7 @@ export const sendEmailAlert = async (req, res) => {
         const mailOptions = {
             from: config.smtp.from,
             to: toEmail,
-            subject: `[ALERT] Nest ${nestNo} in Danger - ${zone}`,
+            subject: `[ALERT] Nest ${nestNo} in Danger - ${location || zone}`,
             html: `
                 <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; border: 2px solid #e11d48; padding: 24px; border-radius: 12px; max-width: 600px;">
                     <h2 style="color: #e11d48; margin-top: 0; display: flex; items-center: center;">
@@ -38,8 +38,8 @@ export const sendEmailAlert = async (req, res) => {
                                 <td style="padding: 8px 0; color: #111827; font-weight: 700;">${nestNo}</td>
                             </tr>
                             <tr>
-                                <td style="padding: 8px 0; color: #6b7280; font-weight: 500;">Location/Zone:</td>
-                                <td style="padding: 8px 0; color: #111827; font-weight: 700;">${zone}</td>
+                                <td style="padding: 8px 0; color: #6b7280; font-weight: 500;">Location:</td>
+                                <td style="padding: 8px 0; color: #111827; font-weight: 700;">${location || zone}</td>
                             </tr>
                             <tr>
                                 <td style="padding: 8px 0; color: #6b7280; font-weight: 500;">Threat Type:</td>
