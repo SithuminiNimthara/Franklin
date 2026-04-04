@@ -21,28 +21,26 @@ import {
 
 import { DATA_DIR, BOUNDARY_FILE, NESTS_FILE } from "./config/paths.js";
 
-// ✅ MongoDB Alert model
+// MongoDB Alert model
 import Alert from "./models/alert.model.js";
 
-// ✅ Socket.IO (realtime)
+// Socket.IO
 import { io } from "../../server.js";
 
-// ✅ Environment (API + manual fallback)
+// Environment
 import { getCurrentEnvironment } from "../environment/services/environment.service.js";
 import { environmentScore } from "./services/environmentRisk.service.js";
 import { notifyIfAllowed } from "./services/shorelineNotify.service.js";
 
-// ✅ python base url
+// python base url
 const PY_INFER_URL =
   process.env.PY_INFER_URL || "http://127.0.0.1:8000/ai/shoreline";
 
-// ✅ resolve this module directory (ESM-safe)
+// resolve this module directory (ESM-safe)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ✅ demo video folder inside shoreline module
-// Put demo videos here:
-// backend/src/modules/shoreline/data/demo_videos/shoreline_demo.mp4
+// demo video folder inside shoreline module
 const DEMO_VIDEO_DIR = path.join(__dirname, "data", "demo_videos");
 
 /** Bootstrap defaults (boundary + nests only) */
@@ -66,13 +64,117 @@ function ensureDefaults() {
   const nests = readJson(NESTS_FILE, null);
   if (!Array.isArray(nests)) {
     writeJson(NESTS_FILE, [
-      { id: "nest-1", label: "Nest #234", x: 10, y: 46 }, // red
-      { id: "nest-2", label: "Nest #189", x: 18, y: 48 }, // orange
-      { id: "nest-3", label: "Nest #201", x: 70, y: 60 }, // green
+      { id: "nest-1", label: "Nest #234", x: 10, y: 46 },
+      { id: "nest-2", label: "Nest #189", x: 18, y: 48 },
+      { id: "nest-3", label: "Nest #201", x: 70, y: 60 },
     ]);
   }
 }
 ensureDefaults();
+
+/** ---------- Helpers ---------- */
+function classifyNestThreat(distancePct) {
+  if (distancePct == null || !Number.isFinite(Number(distancePct))) {
+    return "safe";
+  }
+
+  const d = Number(distancePct);
+
+  if (d <= 5) return "high";
+  if (d <= 8) return "medium";
+  return "safe";
+}
+
+function summarizeNestThreat(evaluation) {
+  const nests = evaluation?.nestsEvaluated || [];
+
+  const threatened = nests
+    .map((n) => ({
+      ...n,
+      threatLevel: classifyNestThreat(n.distancePct),
+    }))
+    .filter((n) => n.threatLevel !== "safe");
+
+  const highThreats = threatened.filter((n) => n.threatLevel === "high");
+  const mediumThreats = threatened.filter((n) => n.threatLevel === "medium");
+
+  let alertRisk = "low";
+
+  if (evaluation?.boundaryCrossed || highThreats.length > 0) {
+    alertRisk = "high";
+  } else if (mediumThreats.length > 0) {
+    alertRisk = "medium";
+  }
+
+  return {
+    alertRisk,
+    threatened,
+    highThreats,
+    mediumThreats,
+  };
+}
+
+function buildEnvironmentFallback() {
+  return {
+    source: "manual",
+    quality: "unknown",
+    observedAt: new Date(),
+    tide: { height_m: null, trend: "unknown", nextHighTideAt: null },
+    rain: { last3h_mm: null, next6h_mm: null },
+  };
+}
+
+function buildProfessionalAlertContent({
+  isVideo = false,
+  boundaryCrossed = false,
+  backendRiskLevel = "low",
+}) {
+  const prefix = isVideo ? "Video: " : "";
+
+  if (boundaryCrossed) {
+    return {
+      message: `${prefix}Critical shoreline breach detected`,
+      summary:
+        "The detected shoreline has crossed the defined hazard boundary, indicating immediate flooding exposure to the protected nesting zone.",
+      riskReason:
+        "Sea movement has advanced beyond the safety boundary, increasing the likelihood of nest inundation and habitat disturbance.",
+      recommendedAction:
+        "Immediate site inspection is recommended. Assess vulnerable nests and prepare relocation or protective intervention if shoreline advance continues.",
+    };
+  }
+
+  if (backendRiskLevel === "high") {
+    return {
+      message: `${prefix}Critical nest threat detected near shoreline`,
+      summary:
+        "One or more nests are within the critical shoreline proximity threshold and may be exposed to wave reach or sudden shoreline advance.",
+      riskReason:
+        "The shoreline has approached the nesting area closely enough to create an immediate threat to hatchling survival and nest stability.",
+      recommendedAction:
+        "Urgent field verification is recommended. Prioritize inspection of the identified nests and consider emergency protection measures.",
+    };
+  }
+
+  if (backendRiskLevel === "medium") {
+    return {
+      message: `${prefix}Shoreline approaching protected nests`,
+      summary:
+        "The shoreline is moving closer to one or more monitored nests and has entered the warning range.",
+      riskReason:
+        "Although the hazard boundary has not yet been crossed, continued shoreline movement may escalate the threat to nearby nests.",
+      recommendedAction:
+        "Continue close monitoring and prepare precautionary intervention if the shoreline advances further.",
+    };
+  }
+
+  return {
+    message: `${prefix}Shoreline conditions normal`,
+    summary: "No immediate shoreline threat has been detected.",
+    riskReason:
+      "Current shoreline position remains within acceptable safety limits.",
+    recommendedAction: "Continue routine monitoring.",
+  };
+}
 
 /** Boundary APIs */
 export function getBoundary(req, res) {
@@ -183,7 +285,7 @@ export async function predictVideoProxy(req, res) {
   }
 }
 
-/** ✅ Predict VIDEO DEMO (NO UPLOAD) */
+/** Predict VIDEO DEMO (NO UPLOAD) */
 export async function predictVideoDemo(req, res) {
   try {
     const name = String(req.query.name || "shoreline_demo.mp4");
@@ -220,7 +322,7 @@ export async function predictVideoDemo(req, res) {
   }
 }
 
-/** Evaluate Offline (IMAGE) — now includes environment + final risk + realtime push */
+/** Evaluate Offline (IMAGE) */
 export async function evaluateOffline(req, res) {
   try {
     if (!req.file) {
@@ -230,12 +332,10 @@ export async function evaluateOffline(req, res) {
       });
     }
 
-    // 1) image meta
     const meta = await sharp(req.file.buffer).metadata();
     const imgW = meta.width || 1920;
     const imgH = meta.height || 1080;
 
-    // 2) python model
     const { status, body } = await predictViaPython(
       req.file.buffer,
       req.file.originalname || "offline.jpg",
@@ -243,7 +343,6 @@ export async function evaluateOffline(req, res) {
     );
     if (status !== 200) return res.status(status).json(body);
 
-    // 3) px -> percent
     const shorelinePx = body.shoreline_points || [];
     let shorelinePct = shorelinePx.map((p) => ({
       x: clamp((Number(p.x) / imgW) * 100, 0, 100),
@@ -256,7 +355,6 @@ export async function evaluateOffline(req, res) {
     shorelinePct = downsample(shorelinePct, 3);
     shorelinePct = smoothY(shorelinePct, 7);
 
-    // 4) load boundary + nests
     const boundary = readJson(BOUNDARY_FILE, null);
     const nests = readJson(NESTS_FILE, []);
     if (!boundary?.points?.length) {
@@ -265,7 +363,6 @@ export async function evaluateOffline(req, res) {
         .json({ detail: "Boundary file missing or invalid." });
     }
 
-    // 5) shoreline risk
     const bufferPct = Number(req.query.bufferPct || 3);
     const evaluation = evaluateRisk({
       shorelinePct,
@@ -274,29 +371,6 @@ export async function evaluateOffline(req, res) {
       bufferPct,
     });
 
-    console.log("IMG META:", { imgW, imgH });
-    console.log("BUFFER:", bufferPct);
-    console.log("FIRST SHORELINE PCT:", shorelinePct?.slice(0, 5));
-
-    const withD = evaluation.nestsEvaluated || evaluation.nestsAtRisk || [];
-    console.log(
-      "NEST DISTANCES:",
-      withD.map((n) => ({
-        id: n.id,
-        label: n.label,
-        x: n.x,
-        y: n.y,
-        d: n.distancePct,
-      })),
-    );
-
-    console.log("RISK EVALUATION RESULT:", {
-      riskLevel: evaluation.riskLevel,
-      boundaryCrossed: evaluation.boundaryCrossed,
-      nestsAtRisk: evaluation.nestsAtRisk?.length,
-    });
-
-    // 6) ✅ get environment (API preferred, fallback manual)
     let environment = null;
     let envScore = 0;
 
@@ -308,18 +382,10 @@ export async function evaluateOffline(req, res) {
         "Environment fetch failed, continuing without env:",
         err?.message || err,
       );
-      environment = {
-        source: "manual",
-        quality: "unknown",
-        observedAt: new Date(),
-        tide: { height_m: null, trend: "unknown", nextHighTideAt: null },
-        rain: { last3h_mm: null, next6h_mm: null },
-      };
+      environment = buildEnvironmentFallback();
       envScore = 0;
     }
 
-    // 7) ✅ final risk fusion (simple + explainable)
-    // Vision dominates, environment amplifies urgency.
     const visionScore = evaluation.boundaryCrossed
       ? 80
       : (evaluation.nestsAtRisk?.length || 0) > 0
@@ -327,45 +393,70 @@ export async function evaluateOffline(req, res) {
         : 10;
 
     const finalScore = visionScore + envScore;
-
     const finalRisk =
       finalScore >= 80 ? "high" : finalScore >= 40 ? "medium" : "low";
 
-    const riskNotes = [];
-    if (envScore >= 15)
-      riskNotes.push("Environmental conditions amplify risk.");
-    if (environment?.rain?.last3h_mm >= 20)
-      riskNotes.push("Heavy recent rainfall detected.");
-    if (environment?.tide?.trend === "rising")
-      riskNotes.push("Tide is rising.");
+    const threatSummary = summarizeNestThreat(evaluation);
 
-    // 8) ✅ Save + realtime push if HIGH (final risk)
+    const riskNotes = [];
+    if (envScore >= 15) {
+      riskNotes.push("Environmental conditions amplify risk.");
+    }
+    if (environment?.rain?.last3h_mm >= 20) {
+      riskNotes.push("Heavy recent rainfall detected.");
+    }
+    if (environment?.tide?.trend === "rising") {
+      riskNotes.push("Tide is rising.");
+    }
+
+    const shouldCreateAlert =
+      evaluation.boundaryCrossed || threatSummary.alertRisk !== "low";
+
     let createdAlert = null;
 
-    if (finalRisk === "high") {
+    if (shouldCreateAlert) {
+      const backendRiskLevel = evaluation.boundaryCrossed
+        ? "high"
+        : threatSummary.alertRisk;
+
       const baseKey = evaluation.boundaryCrossed
         ? "shoreline_boundary_crossed"
-        : "shoreline_nests_at_risk";
+        : backendRiskLevel === "high"
+          ? "shoreline_critical_nest_threat"
+          : "shoreline_warning_nest_threat";
 
-      const userId = req.auth?.userId || "anon"; // 👈 logged-in user
-      const cooldownKey = `${userId}_${baseKey}`; // 👈 per-user cooldown
+      const userId = req.auth?.userId || "anon";
+      const cooldownKey = `${userId}_${baseKey}`;
+
+      const threatNests =
+        backendRiskLevel === "high"
+          ? threatSummary.highThreats
+          : threatSummary.mediumThreats;
+
+      const content = buildProfessionalAlertContent({
+        isVideo: false,
+        boundaryCrossed: evaluation.boundaryCrossed,
+        backendRiskLevel,
+      });
 
       createdAlert = await Alert.create({
         type: "shoreline",
-        riskLevel: "high",
-        message: evaluation.boundaryCrossed
-          ? "Shoreline crossed boundary line"
-          : "Shoreline close to turtle nests",
+        riskLevel: backendRiskLevel,
+        message: content.message,
         status: "new",
         source: "offline_image",
-        cooldownKey, // ✅ UPDATED HERE
+        cooldownKey,
         details: {
+          summary: content.summary,
+          riskReason: content.riskReason,
+          recommendedAction: content.recommendedAction,
+          boundaryCrossed: evaluation.boundaryCrossed,
+          nestsAtRisk: threatNests,
+          nestsAtRiskCount: threatNests.length,
           evaluation,
           bufferPct,
           boundary,
           nests: evaluation.nestsEvaluated || nests,
-          nestsAtRiskCount:
-            evaluation.nestsAtRiskCount ?? evaluation.nestsAtRisk?.length ?? 0,
           shoreline: shorelinePct,
           image: { w: imgW, h: imgH },
           model: {
@@ -377,24 +468,25 @@ export async function evaluateOffline(req, res) {
           visionScore,
           finalScore,
           finalRisk,
+          backendRiskLevel,
+          threatSummary,
           riskNotes,
         },
       });
 
-      // ✅ realtime notify dashboards
       try {
         io.emit("shoreline:new_alert", createdAlert);
       } catch (e) {
         console.warn("Socket emit failed:", e?.message || e);
       }
-      // ✅ EMAIL notify (send to logged-in user's email)
+
       try {
         const userId = req.auth?.userId || req.userId || null;
         const userEmail = await getUserPrimaryEmail(userId);
 
         const emailResult = await notifyIfAllowed({
           alertDoc: createdAlert,
-          recipients: userEmail ? [userEmail] : [], // override
+          recipients: userEmail ? [userEmail] : [],
         });
 
         console.log("Email notify result:", emailResult, { userEmail, userId });
@@ -402,29 +494,30 @@ export async function evaluateOffline(req, res) {
         console.warn("Email notify failed:", e?.message || e);
       }
     }
-    // 9) response includes environment + fused risk
+
     return res.json({
       mode: "offline",
       image: { w: imgW, h: imgH },
       shoreline: shorelinePct,
       boundary,
       nests,
-
-      evaluation, // original
-      environment, // NEW
+      evaluation,
+      environment,
       fusion: {
         envScore,
         visionScore,
         finalScore,
         finalRisk,
+        backendRiskLevel: evaluation.boundaryCrossed
+          ? "high"
+          : threatSummary.alertRisk,
         notes: riskNotes,
       },
-
+      threatSummary,
       model: {
         shoreline_conf: body.shoreline_conf ?? null,
         notes: body.notes ?? null,
       },
-
       createdAlertId: createdAlert?._id ? String(createdAlert._id) : null,
     });
   } catch (e) {
@@ -443,10 +536,8 @@ export async function evaluateVideoUpload(req, res) {
         .json({ detail: "video file is required (field 'file')" });
     }
 
-    // 1) send to python predict-video
     const form = new FormData();
 
-    //  disk upload -> read from path
     const buffer = fs.readFileSync(req.file.path);
     const blob = new Blob([buffer], { type: req.file.mimetype || "video/mp4" });
     form.append("file", blob, req.file.originalname || "video.mp4");
@@ -466,12 +557,9 @@ export async function evaluateVideoUpload(req, res) {
       return res.status(pyRes.status).json(pyJson ?? { detail: text });
     }
 
-    // expected from python:
-    // { fps, frames: [{ t, shoreline_points:[{x,y,conf}], image:{w,h}, risk_level? }] }
     const frames = Array.isArray(pyJson?.frames) ? pyJson.frames : [];
     const fps = Number(pyJson?.fps || 30);
 
-    // 2) load boundary + nests
     const boundary = readJson(BOUNDARY_FILE, null);
     const nests = readJson(NESTS_FILE, []);
     if (!boundary?.points?.length) {
@@ -480,28 +568,20 @@ export async function evaluateVideoUpload(req, res) {
         .json({ detail: "Boundary file missing or invalid." });
     }
 
-    // 3) optional environment fusion (reuse your existing block)
     let environment = null;
     let envScore = 0;
     try {
       environment = await getCurrentEnvironment();
       envScore = environmentScore(environment);
     } catch {
-      environment = {
-        source: "manual",
-        quality: "unknown",
-        observedAt: new Date(),
-        tide: { height_m: null, trend: "unknown", nextHighTideAt: null },
-        rain: { last3h_mm: null, next6h_mm: null },
-      };
+      environment = buildEnvironmentFallback();
       envScore = 0;
     }
 
     const bufferPct = Number(req.query.bufferPct || 3);
 
-    // 4) evaluate per frame
     const evaluatedFrames = [];
-    let highTriggered = false;
+    let alertTriggered = false;
     let createdAlert = null;
 
     for (let i = 0; i < frames.length; i++) {
@@ -509,14 +589,12 @@ export async function evaluateVideoUpload(req, res) {
       const imgW = f?.image?.w || 1920;
       const imgH = f?.image?.h || 1080;
 
-      // px -> pct
       let shorelinePct = (f?.shoreline_points || []).map((p) => ({
         x: clamp((Number(p.x) / imgW) * 100, 0, 100),
         y: clamp((Number(p.y) / imgH) * 100, 0, 100),
         conf: p.conf ?? null,
       }));
 
-      // cleanup polyline
       shorelinePct = sortByX(shorelinePct);
       shorelinePct = trimEdges(shorelinePct, 6);
       shorelinePct = downsample(shorelinePct, 3);
@@ -529,7 +607,6 @@ export async function evaluateVideoUpload(req, res) {
         bufferPct,
       });
 
-      // vision score (same style as your image mode)
       const visionScore = evaluation.boundaryCrossed
         ? 80
         : (evaluation.nestsAtRisk?.length || 0) > 0
@@ -540,27 +617,51 @@ export async function evaluateVideoUpload(req, res) {
       const finalRisk =
         finalScore >= 80 ? "high" : finalScore >= 40 ? "medium" : "low";
 
-      // create alert once when first high happens
-      if (!highTriggered && finalRisk === "high") {
-        highTriggered = true;
+      const threatSummary = summarizeNestThreat(evaluation);
+      const shouldCreateAlert =
+        evaluation.boundaryCrossed || threatSummary.alertRisk !== "low";
+
+      if (!alertTriggered && shouldCreateAlert) {
+        alertTriggered = true;
+
+        const backendRiskLevel = evaluation.boundaryCrossed
+          ? "high"
+          : threatSummary.alertRisk;
 
         const baseKey = evaluation.boundaryCrossed
           ? "shoreline_boundary_crossed_video"
-          : "shoreline_nests_at_risk_video";
+          : backendRiskLevel === "high"
+            ? "shoreline_critical_nest_threat_video"
+            : "shoreline_warning_nest_threat_video";
 
         const userId = req.auth?.userId || "anon";
         const cooldownKey = `${userId}_${baseKey}`;
 
+        const threatNests =
+          backendRiskLevel === "high"
+            ? threatSummary.highThreats
+            : threatSummary.mediumThreats;
+
+        const content = buildProfessionalAlertContent({
+          isVideo: true,
+          boundaryCrossed: evaluation.boundaryCrossed,
+          backendRiskLevel,
+        });
+
         createdAlert = await Alert.create({
           type: "shoreline",
-          riskLevel: "high",
-          message: evaluation.boundaryCrossed
-            ? "Video: Shoreline crossed boundary line"
-            : "Video: Shoreline close to turtle nests",
+          riskLevel: backendRiskLevel,
+          message: content.message,
           status: "new",
           source: "video_upload",
           cooldownKey,
           details: {
+            summary: content.summary,
+            riskReason: content.riskReason,
+            recommendedAction: content.recommendedAction,
+            boundaryCrossed: evaluation.boundaryCrossed,
+            nestsAtRisk: threatNests,
+            nestsAtRiskCount: threatNests.length,
             bufferPct,
             boundary,
             nests,
@@ -570,42 +671,58 @@ export async function evaluateVideoUpload(req, res) {
             visionScore,
             finalScore,
             finalRisk,
+            backendRiskLevel,
+            threatSummary,
             atTime: Number(f?.t ?? i / fps),
           },
         });
 
-        // realtime + email (same as image)
         try {
           io.emit("shoreline:new_alert", createdAlert);
-        } catch {}
+        } catch (e) {
+          console.warn("Socket emit failed:", e?.message || e);
+        }
+
         try {
           const userEmail = await getUserPrimaryEmail(req.auth?.userId || null);
           await notifyIfAllowed({
             alertDoc: createdAlert,
             recipients: userEmail ? [userEmail] : [],
           });
-        } catch {}
+        } catch (e) {
+          console.warn("Email notify failed:", e?.message || e);
+        }
       }
 
       evaluatedFrames.push({
-        t: Number(f?.t ?? i / fps), // seconds
+        t: Number(f?.t ?? i / fps),
         shorelinePct,
         evaluation,
-        fusion: { envScore, visionScore, finalScore, finalRisk },
+        threatSummary,
+        fusion: {
+          envScore,
+          visionScore,
+          finalScore,
+          finalRisk,
+          backendRiskLevel: evaluation.boundaryCrossed
+            ? "high"
+            : threatSummary.alertRisk,
+        },
         image: { w: imgW, h: imgH },
       });
     }
 
-    // 5) summary
     const summary = {
       totalFrames: evaluatedFrames.length,
-      highFrames: evaluatedFrames.filter((x) => x.fusion.finalRisk === "high")
-        .length,
-      mediumFrames: evaluatedFrames.filter(
-        (x) => x.fusion.finalRisk === "medium",
+      highFrames: evaluatedFrames.filter(
+        (x) => x.fusion.backendRiskLevel === "high",
       ).length,
-      lowFrames: evaluatedFrames.filter((x) => x.fusion.finalRisk === "low")
-        .length,
+      mediumFrames: evaluatedFrames.filter(
+        (x) => x.fusion.backendRiskLevel === "medium",
+      ).length,
+      lowFrames: evaluatedFrames.filter(
+        (x) => x.fusion.backendRiskLevel === "low",
+      ).length,
       breachedAny: evaluatedFrames.some((x) => x.evaluation?.boundaryCrossed),
       createdAlertId: createdAlert?._id ? String(createdAlert._id) : null,
     };
@@ -626,7 +743,6 @@ export async function evaluateVideoUpload(req, res) {
       .status(500)
       .json({ detail: e.message || "evaluateVideoUpload failed" });
   } finally {
-    //  delete uploaded temp video
     try {
       if (req.file?.path) fs.unlinkSync(req.file.path);
     } catch {}

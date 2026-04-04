@@ -1,9 +1,9 @@
 import React from "react";
 
-export const COLORS = {
-  pageBg: "#f4f7fb",
-  panel: "#ffffff",
-  card: "#ffffff",
+export const SHORELINE_COLORS = {
+  pageBackground: "#f4f7fb",
+  panelBackground: "#ffffff",
+  cardBackground: "#ffffff",
   softWhite: "rgba(255,255,255,0.82)",
 
   border: "#dbe7f3",
@@ -32,17 +32,21 @@ export const COLORS = {
   shadow: "0 1px 2px rgba(15, 23, 42, 0.05)",
 };
 
-function withAlpha(hex, alpha = "15") {
-  if (!hex || typeof hex !== "string") return hex;
-  if (hex.startsWith("#") && hex.length === 7) return `${hex}${alpha}`;
-  return hex;
+export function addAlphaToHex(hexColor, alpha = "15") {
+  if (!hexColor || typeof hexColor !== "string") return hexColor;
+
+  if (hexColor.startsWith("#") && hexColor.length === 7) {
+    return `${hexColor}${alpha}`;
+  }
+
+  return hexColor;
 }
 
 export function SectionHeader({
   icon: Icon,
   title,
-  accent = COLORS.primary,
-  right,
+  accent = SHORELINE_COLORS.primary,
+  rightContent = null,
 }) {
   return (
     <div className="mb-5 flex items-center justify-between">
@@ -50,7 +54,7 @@ export function SectionHeader({
         <div
           className="flex h-10 w-10 items-center justify-center rounded-xl"
           style={{
-            backgroundColor: withAlpha(accent, "15"),
+            backgroundColor: addAlphaToHex(accent, "15"),
             color: accent,
           }}
         >
@@ -60,14 +64,14 @@ export function SectionHeader({
         <div>
           <h3
             className="text-[16px] font-bold leading-none"
-            style={{ color: COLORS.title }}
+            style={{ color: SHORELINE_COLORS.title }}
           >
             {title}
           </h3>
         </div>
       </div>
 
-      {right}
+      {rightContent}
     </div>
   );
 }
@@ -77,9 +81,9 @@ export function Panel({ children, className = "" }) {
     <div
       className={`rounded-2xl border bg-white p-5 shadow-sm ${className}`}
       style={{
-        borderColor: COLORS.border,
-        backgroundColor: COLORS.panel,
-        boxShadow: COLORS.shadow,
+        borderColor: SHORELINE_COLORS.border,
+        backgroundColor: SHORELINE_COLORS.panelBackground,
+        boxShadow: SHORELINE_COLORS.shadow,
       }}
     >
       {children}
@@ -87,7 +91,7 @@ export function Panel({ children, className = "" }) {
   );
 }
 
-export function LiveDot({ color = COLORS.success }) {
+export function LiveDot({ color = SHORELINE_COLORS.success }) {
   return (
     <span className="relative flex h-2.5 w-2.5">
       <span
