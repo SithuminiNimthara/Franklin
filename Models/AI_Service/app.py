@@ -97,7 +97,7 @@ async def background_warmup():
         test_vid_dir = os.path.join(BASE_DIR, "test_videos")
         print(f"📂 Checking test videos in: {test_vid_dir}")
 
-        for tank_id in ["tankA", "tankF", "tankC", "tankE"]:
+        for tank_id in ["tankA", "tankB", "tankC", "tankD"]:
             # Keep your existing .mov, but allow mp4 fallback too
             mov_path = os.path.join(test_vid_dir, f"{tank_id}.mov")
             mp4_path = os.path.join(test_vid_dir, f"{tank_id}.mp4")
