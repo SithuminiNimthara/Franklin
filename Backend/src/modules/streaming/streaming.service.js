@@ -64,13 +64,13 @@ class StreamingService {
             );
         }
 
-        // Use forward slashes for FFmpeg paths even on Windows
-        const normalizedInput = rtspUrl.replace(/\\/g, '/');
-        const normalizedSegmentPattern = path.join(cameraDir, 'p%d.ts').replace(/\\/g, '/');
-        const normalizedPlaylist = playlistPath.replace(/\\/g, '/');
+        // FFmpeg paths on Windows - use backslashes for local paths if FFmpeg is pickier, 
+        // but forward slashes are usually fine. However, 'file:' prefix is best avoided with drive letters.
+        const normalizedSegmentPattern = path.join(cameraDir, 'p%d.ts');
+        const normalizedPlaylist = playlistPath;
 
         ffmpegArgs.push(
-            '-i', normalizedInput,
+            '-i', rtspUrl,
             '-c:v', 'libx264',
             '-profile:v', 'baseline',
             '-level', '3.0',
@@ -89,27 +89,25 @@ class StreamingService {
             '-hls_list_size', '3',
             '-hls_flags', 'delete_segments+independent_segments+omit_endlist+discont_start',
             '-hls_allow_cache', '0',
-            '-hls_segment_filename', `file:${normalizedSegmentPattern}`,
-            `file:${normalizedPlaylist}`
+            '-hls_segment_filename', normalizedSegmentPattern,
+            normalizedPlaylist
         );
 
-        console.log(`[Camera ${id}] Source: ${normalizedInput}`);
+        console.log(`[Camera ${id}] Source: ${rtspUrl}`);
         console.log(`[Camera ${id}] Executing: ${ffmpegPath} ${ffmpegArgs.join(' ')}`);
-        const process = spawn(ffmpegPath, ffmpegArgs);
+        const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs);
 
-        process.stdout.on('data', (data) => {
+        ffmpegProcess.stdout.on('data', (data) => {
             // console.log(`[Camera ${id}] stdout: ${data}`);
         });
 
-        process.stderr.on('data', (data) => {
-            // Log only critical errors or performance issues to avoid spamming
+        ffmpegProcess.stderr.on('data', (data) => {
             const msg = data.toString();
-            if (msg.includes('Error') || msg.includes('speed=')) {
-                console.error(`[Camera ${id}] info: ${msg.trim()}`);
-            }
+            // Log everything during debugging or filter less aggressively
+            console.log(`[Camera ${id}] stderr: ${msg.trim()}`);
         });
 
-        process.on('close', (code) => {
+        ffmpegProcess.on('close', (code) => {
             const entry = this.processes.get(id);
             const wasStopping = entry?.isStopping;
 
@@ -133,7 +131,7 @@ class StreamingService {
         });
 
         this.processes.set(id, {
-            process,
+            process: ffmpegProcess,
             startTime: new Date(),
             rtspUrl,
             isStopping: false
