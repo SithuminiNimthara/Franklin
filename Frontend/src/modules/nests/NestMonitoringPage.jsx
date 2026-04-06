@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Video, AlertTriangle, MapPin, ShieldAlert, BadgeCheck, Volume2, VolumeX, Eye } from 'lucide-react';
+import { Video, AlertTriangle, MapPin, ShieldAlert, BadgeCheck, Volume2, VolumeX, Eye, Maximize2, Minimize2, X } from 'lucide-react';
 import { io } from 'socket.io-client';
 import DashboardCard from '../../shared/components/ui/DashboardCard';
 import BeachMap from '../../shared/components/maps/BeachMap';
@@ -31,6 +31,7 @@ export default function NestMonitoringPage() {
   const [isSirenMuted, setIsSirenMuted] = useState(false);
   const [isAiMode, setIsAiMode] = useState(false);
   const [liveDetections, setLiveDetections] = useState([]);
+  const [isMaximized, setIsMaximized] = useState(false);
 
   const userData = userLoaded && user ? {
     name: user.fullName || 'User',
@@ -383,6 +384,35 @@ export default function NestMonitoringPage() {
     <div className="space-y-6">
       <audio ref={sirenRef} src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3" loop />
 
+      {/* Maximize Modal */}
+      {isMaximized && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 animate-fadeIn backdrop-blur-md p-4 sm:p-8">
+          <button 
+            onClick={() => setIsMaximized(false)}
+            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all border border-white/20 z-[110]"
+          >
+            <X className="h-8 w-8" />
+          </button>
+          
+          <div className="w-full max-w-6xl aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10 relative">
+             <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+                <div className="bg-red-500 h-2 w-2 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
+                <span className="text-[10px] font-bold text-white uppercase tracking-widest drop-shadow-md">
+                   {isAiMode ? 'LIVE AI MODE (MAXIMIZED)' : 'LIVE STREAM (MAXIMIZED)'}
+                </span>
+             </div>
+
+             {simulationData ? (
+               <video src={simulationData.video_url} controls autoPlay className="w-full h-full object-contain" />
+             ) : isAiMode ? (
+               <img src={streamUrl} className="w-full h-full object-contain" alt="Maximized AI Feed" />
+             ) : (
+               <HlsPlayer src={streamUrl} className="w-full h-full" />
+             )}
+          </div>
+        </div>
+      )}
+
       {showDangerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full shadow-2xl border-4 border-red-500 overflow-hidden relative">
@@ -498,7 +528,14 @@ export default function NestMonitoringPage() {
 
               {(simulationData || streamUrl) ? (
                 <div className="xl:w-[380px] bg-gray-50 dark:bg-slate-800/20 p-4 space-y-4 border-l border-gray-100 dark:border-slate-800 flex flex-col">
-                  <div className="bg-black rounded-2xl overflow-hidden shadow-xl aspect-video relative">
+                  <div className="bg-black rounded-2xl overflow-hidden shadow-xl aspect-video relative group">
+                    <button 
+                      onClick={() => setIsMaximized(true)}
+                      className="absolute top-3 right-3 z-20 p-2 bg-black/40 hover:bg-black/60 text-white rounded-lg backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all border border-white/10"
+                      title="Maximize View"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </button>
                     {simulationData ? (
                       <video ref={videoRef} src={simulationData.video_url} controls autoPlay className="w-full h-full object-cover" onTimeUpdate={handleTimeUpdate} />
                     ) : isAiMode ? (
