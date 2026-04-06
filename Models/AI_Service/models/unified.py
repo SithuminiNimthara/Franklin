@@ -7,7 +7,9 @@ import requests
 import threading
 import queue
 import time
+import time
 from ultralytics import YOLO
+from concurrent.futures import ThreadPoolExecutor
 
 # Constants
 STATIONARY_THRESHOLD = 2.0
@@ -21,6 +23,9 @@ class UnifiedProcessor:
         self.node_backend_url = node_backend_url
         self.models = {}
         self.turtle_tracks = []
+        
+        # Parallel Execution for faster inference on CPU
+        self.executor = ThreadPoolExecutor(max_workers=3)
         
         # Background Reporting Queue
         self.report_queue = queue.Queue(maxsize=100)
@@ -81,60 +86,43 @@ class UnifiedProcessor:
         
         # AI Internal Resize for speed (YOLO usually uses 640x640)
         # We don't resize the 'annotated_frame' back yet, we draw on the original or a copy
-        frame_dets = []
-
-        # 1. Turtle
-        model_t = self.load_model('turtle')
-        if model_t:
-            # Setting imgsz to 320 for even faster inference if needed, but 640 is standard
-            res = model_t(frame, verbose=False, conf=0.4, imgsz=640)
-            for r in res:
-                for box in r.boxes:
-                    x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    cx, by = (x1 + x2) / 2, y2
-                    mx, my = (cx / orig_w) * 100, (by / orig_h) * 100
-                    frame_dets.append({
-                        "type": "turtle",
-                        "score": float(box.conf[0]),
-                        "bbox": [x1, y1, x2, y2],
-                        "map_x": mx,
-                        "map_y": my
-                    })
-
-        # 2. Predator
-        model_p = self.load_model('predator')
-        if model_p:
-            res = model_p(frame, verbose=False, conf=0.4, imgsz=640)
-            for r in res:
-                for box in r.boxes:
-                    x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    cx, by = (x1 + x2) / 2, y2
-                    frame_dets.append({
-                        "type": "predator",
-                        "score": float(box.conf[0]),
-                        "bbox": [x1, y1, x2, y2],
-                        "map_x": (cx / orig_w) * 100,
-                        "map_y": (by / orig_h) * 100
-                    })
-
-        # 3. Human
-        model_h = self.load_model('human')
-        if model_h:
+        # --- INFERENCE STEP (Parallelized) ---
+        def run_model(key, model, img, **kwargs):
             try:
-                # Class 0 is human in standard YOLO
-                res = model_h(frame, verbose=False, conf=0.4, classes=[0], imgsz=640)
-                for r in res:
+                # Set imgsz to 320 for significant speedup on CPU while maintaining decent accuracy
+                results = model(img, verbose=False, conf=0.4, imgsz=320, **kwargs)
+                dets = []
+                for r in results:
                     for box in r.boxes:
                         x1, y1, x2, y2 = box.xyxy[0].tolist()
                         cx, by = (x1 + x2) / 2, y2
-                        frame_dets.append({
-                            "type": "human",
+                        dets.append({
+                            "type": key,
                             "score": float(box.conf[0]),
                             "bbox": [x1, y1, x2, y2],
                             "map_x": (cx / orig_w) * 100,
                             "map_y": (by / orig_h) * 100
                         })
-            except: pass
+                return dets
+            except Exception as e:
+                print(f"Parallel inference error ({key}): {e}")
+                return []
+
+        # Get models
+        model_t = self.load_model('turtle')
+        model_p = self.load_model('predator')
+        model_h = self.load_model('human')
+
+        # Launch futures
+        frame_dets = []
+        futures = []
+        if model_t: futures.append(self.executor.submit(run_model, 'turtle', model_t, frame))
+        if model_p: futures.append(self.executor.submit(run_model, 'predator', model_p, frame))
+        if model_h: futures.append(self.executor.submit(run_model, 'human', model_h, frame, classes=[0]))
+
+        # Collect results
+        for f in futures:
+            frame_dets.extend(f.result())
 
         # NMS
         final_dets = []
@@ -234,7 +222,7 @@ class UnifiedProcessor:
                 if dist > 5.0 or time_since > 2.0:
                     should_report = True
             
-            if should_report and not self.report_queue.full():
+            if should_report:
                 self.last_reported[dtype] = {'x': dx, 'y': dy, 'time': now}
                 payload = {
                     "type": d['type'],
@@ -246,7 +234,11 @@ class UnifiedProcessor:
                     "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                     "details": "AI DETECTED NESTER" if d.get('is_ai_nest') else ""
                 }
-                self.report_queue.put(payload)
+                try:
+                    # Use non-blocking put to ensure AI NEVER slows down even if network reporting lags
+                    self.report_queue.put(payload, block=False)
+                except queue.Full:
+                    pass # Silently drop reports if queue is jammed (better than freezing video)
 
         return annotated_frame, final_dets
 

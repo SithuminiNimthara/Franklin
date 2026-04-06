@@ -8,6 +8,8 @@ import time
 import asyncio
 from tempfile import NamedTemporaryFile
 from contextlib import asynccontextmanager
+import threading
+import queue
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -348,69 +350,164 @@ async def analyze_unified(request: Request, file: UploadFile = File(...)):
         print(f"Unified analyze failed: {e}")
         raise HTTPException(500, str(e))
 
+class BackgroundVideoStream:
+    """Reads frames from a video source and provides pre-scaled versions for AI."""
+    def __init__(self, source):
+        self.source = source
+        self.cap = cv2.VideoCapture(source)
+        self.ret = False
+        self.frame = None
+        self.small_frame = None # Pre-scaled for AI
+        self.stopped = False
+        self.lock = threading.Lock()
+        self.thread = threading.Thread(target=self._update, daemon=True)
+        self.thread.start()
+
+    def _update(self):
+        while not self.stopped:
+            if not self.cap.isOpened():
+                break
+            ret, frame = self.cap.read()
+            if ret:
+                # OPTIMIZATION: Cap resolution to 1080p for streaming. 
+                # Processing 4K images for MJPEG and drawing is too slow for real-time.
+                h, w = frame.shape[:2]
+                if w > 1920:
+                    scale = 1920 / w
+                    frame = cv2.resize(frame, (1920, int(h * scale)))
+                
+                with self.lock:
+                    self.ret = ret
+                    self.frame = frame
+                    # We'll let the AI worker handle its own resize to keep reader ultra-fast
+                    self.small_frame = None 
+            else:
+                if not isinstance(self.source, str) or not self.source.startswith("rtsp://"):
+                    self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                else:
+                    time.sleep(0.5)
+
+    def read(self, ai_version=False):
+        with self.lock:
+            # If AI wants a frame, give it the latest full-res for it to resize
+            # (In a real system we'd use a separate queue, but this works well)
+            return self.ret, self.frame.copy() if self.frame is not None else None
+
+    def stop(self):
+        self.stopped = True
+     # --- Global Stream Pooling to save CPU ---
+ACTIVE_STREAMS = {} # {source: {"vs": vs, "state": state, "refs": count, "lock": lock}}
+STREAMS_LOCK = threading.Lock()
+
 @app.get("/ai/unified/stream")
 def stream_unified(source: str):
     """
-    Stream a live camera or remote video through UnifiedProcessor.
-    Uses frame-skipping to maintain real-time performance.
+    ULTRA SMOOTH POOLED Stream:
+    - Reuses the same AI worker and Video reader if multiple clients connect to the same source.
+    - Prevents CPU meltdown on page refreshes or multiple open tabs.
     """
     unified = get_unified()
+    
+    with STREAMS_LOCK:
+        if source in ACTIVE_STREAMS:
+            print(f"♻️ Reusing existing stream for {source}")
+            stream_obj = ACTIVE_STREAMS[source]
+            stream_obj["refs"] += 1
+        else:
+            print(f"🆕 Creating new high-speed pooled stream for {source}")
+            vs = BackgroundVideoStream(source)
+            state = {
+                "latest_dets": [],
+                "running": True
+            }
+            lock = threading.Lock()
+
+            def ai_worker():
+                """Background thread for heavy AI tasks."""
+                print(f"🧠 Shared AI worker started for {source}")
+                while state["running"]:
+                    success, frame = vs.read(ai_version=True)
+                    if not success or frame is None:
+                        time.sleep(0.01)
+                        continue
+                    
+                    try:
+                        # Resize here in the background AI thread so the stream remains smooth
+                        small_frame = cv2.resize(frame, (640, 360))
+                        _, dets = unified.process_frame(small_frame, source_id=source)
+                        with lock:
+                            state["latest_dets"] = dets
+                    except Exception as e:
+                        print(f"Shared AI Worker error: {e}")
+                    
+                    time.sleep(0.005)
+
+                vs.stop()
+                print(f"🛑 Shared Stream stopped for {source}")
+
+            ai_thread = threading.Thread(target=ai_worker, daemon=True)
+            ai_thread.start()
+            
+            stream_obj = {
+                "vs": vs,
+                "state": state,
+                "lock": lock,
+                "refs": 1
+            }
+            ACTIVE_STREAMS[source] = stream_obj
 
     def iter_frames():
-        print(f"📹 Starting unified stream for {source}")
-        cap = cv2.VideoCapture(source)
-        if not cap.isOpened():
-            print(f"Failed to open video source: {source}")
-            return
-
-        frame_count = 0
-        process_every = 3 # Process every 3rd frame for AI to reduce CPU load
-        last_annotated = None
-        target_size = (640, 360) # Standard 16:9 for faster inference
-
-        while cap.isOpened():
-            success, frame = cap.read()
-            if not success:
-                # If it's a file, loop it. 
-                if not source.startswith("rtsp://"):
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    success, frame = cap.read()
-                    if not success: break
-                else:
-                    # For RTSP, wait a bit and retry OR break if persistent
-                    time.sleep(1)
+        try:
+            print(f"📹 Client connected to Pooled Stream: {source}")
+            while True:
+                # Use the pooled stream resources
+                success, frame = stream_obj["vs"].read()
+                if not success or frame is None:
+                    time.sleep(0.01)
                     continue
 
-            frame_count += 1
-            
-            # AI Inference
-            if frame_count % process_every == 0 or last_annotated is None:
-                # Resize for MUCH faster processing
-                small_frame = cv2.resize(frame, target_size)
-                last_annotated, _ = unified.process_frame(small_frame, source_id=source)
-            
-            # Use annotated frame for streaming
-            display_frame = last_annotated if last_annotated is not None else frame
+                with stream_obj["lock"]:
+                    current_dets = stream_obj["state"]["latest_dets"]
 
-            # Encode with slightly lower quality for faster transmission
-            ok, buf = cv2.imencode(".jpg", display_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-            if not ok:
-                continue
+                # Quick Overlay on the ORIGINAL frame (High Quality)
+                h, w = frame.shape[:2]
+                for d in current_dets:
+                    x1, y1, x2, y2 = [int(v) for v in d['bbox']]
+                    scale_x, scale_y = w / 640.0, h / 360.0
+                    x1, x2 = int(x1 * scale_x), int(x2 * scale_x)
+                    y1, y2 = int(y1 * scale_y), int(y2 * scale_y)
 
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
-            )
+                    color = (0, 255, 0) if d['type'] == 'turtle' else (0, 0, 255) if d['type'] == 'predator' else (255, 0, 0)
+                    if d['type'] == 'nest': color = (0, 255, 255) # Yellow-Cyan for Nest
+                    
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                    label = f"{d['type'].upper()} {d['score']:.1f}"
+                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-            # Small delay to prevent CPU spinning 100% on empty loops
-            if source.startswith("rtsp://"):
-                # Reduced sleep for better responsiveness
-                time.sleep(0.005)
+                # MJPEG delivery at high quality
+                ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                if not ok: continue
 
-        cap.release()
-        print(f"Unified stream stopped for {source}")
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
+                )
+
+                # Maintain steady ~25 FPS to the client
+                time.sleep(0.035) 
+
+        finally:
+            with STREAMS_LOCK:
+                stream_obj["refs"] -= 1
+                print(f"👋 Client disconnected from {source} (Remaining: {stream_obj['refs']})")
+                if stream_obj["refs"] <= 0:
+                    print(f"🧹 Final cleanup for orphaned stream: {source}")
+                    stream_obj["state"]["running"] = False
+                    if source in ACTIVE_STREAMS:
+                        del ACTIVE_STREAMS[source]
 
     return StreamingResponse(iter_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+
 
 
 # ---------------------------
