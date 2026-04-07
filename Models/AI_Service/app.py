@@ -174,7 +174,7 @@ async def background_warmup():
                 hatchery.register_video(tank_id, vid_path)
                 print(f"Registered tank: {tank_id} with path {vid_path}")
             else:
-                print(f"⚠️ Missing demo video for {vid}: {path}")
+                print(f"⚠️ Missing demo video for {tank_id}: {vid_path}")
 
     except Exception as e:
         print(f"Default tanks registration failed: {e}")

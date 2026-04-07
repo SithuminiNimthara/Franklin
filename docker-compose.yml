@@ -7,8 +7,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5002:5002"
-    environment:
-      - PY_INFER_URL=http://ai_service:8000/ai/shoreline/predict
     env_file:
       - ./Backend/.env
     restart: unless-stopped
@@ -20,7 +18,7 @@ services:
       context: ./Frontend
       dockerfile: Dockerfile
       args:
-        # These are used by the BROWSER - so localhost is correct for dev
+        # Pass required build-time arguments. Adjust values for staging/prod as needed.
         VITE_API_BASE_URL: http://localhost:5002
         VITE_AI_SERVICE_URL: http://localhost:8000
         VITE_CLERK_PUBLISHABLE_KEY: pk_test_cHVtcGVkLWNvd2JpcmQtNzQuY2xlcmsuYWNjb3VudHMuZGV2JA
@@ -38,8 +36,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    environment:
-      - NODE_BACKEND_URL=http://backend:5002
     restart: unless-stopped
     # Use larger shm_size if Ultralytics or TensorFlow complain about shared memory
     shm_size: '2gb'
