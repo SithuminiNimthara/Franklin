@@ -9,6 +9,10 @@ services:
       - "5002:5002"
     env_file:
       - ./Backend/.env
+    environment:
+      # Override localhost URLs with Docker service names
+      AI_SERVICE_URL: http://ai_service:8000
+      PY_INFER_URL: http://ai_service:8000/ai/shoreline
     restart: unless-stopped
     depends_on:
       - ai_service
