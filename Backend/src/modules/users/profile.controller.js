@@ -1,5 +1,9 @@
 import { Profile } from './profile.model.js';
 import { clerkClient } from '../../middleware/auth.js';
+import { Detection } from '../detections/detections.model.js';
+import { Report } from '../reports/report.model.js';
+import Alert from '../shoreline/models/alert.model.js';
+import { HatcheryAlert } from '../hatchery/hatchery.models.js';
 
 export const getMyProfile = async (req, res) => {
     try {
@@ -72,11 +76,23 @@ export const updateMyProfile = async (req, res) => {
 export const getMySummary = async (req, res) => {
     try {
         console.log('[Profile] GET /me/summary');
-        // Mock data as requested
+        
+        // turtlesTagged: total turtles detected
+        const turtlesTagged = await Detection.countDocuments({ type: 'turtle' });
+        
+        // reportsGenerated: total reports generated
+        const reportsGenerated = await Report.countDocuments();
+        
+        // alertsResolved: total resolved alerts from both shoreline and hatchery
+        const shorelineResolved = await Alert.countDocuments({ status: 'resolved' });
+        const hatcheryResolved = await HatcheryAlert.countDocuments({ status: { $in: ['resolved', 'fixed'] } });
+        
+        const alertsResolved = shorelineResolved + hatcheryResolved;
+        
         res.json({
-            turtlesTagged: 127,
-            reportsGenerated: 24,
-            alertsResolved: 18
+            turtlesTagged,
+            reportsGenerated,
+            alertsResolved
         });
     } catch (error) {
         console.error('[Profile] Get Summary Error:', error.message);
