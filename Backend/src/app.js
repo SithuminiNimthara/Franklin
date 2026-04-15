@@ -17,6 +17,7 @@ import profileRoutes from "./modules/users/profile.routes.js";
 import cameraRoutes from "./modules/cameras/camera.routes.js";
 import analyticsRoutes from "./modules/analytics/analytics.routes.js";
 import reportsRoutes from "./modules/reports/reports.routes.js";
+import dashboardRoutes from "./modules/dashboard/dashboard.routes.js";
 
 const app = express();
 
@@ -102,6 +103,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/cameras", cameraRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/reports", reportsRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Health route
 app.get("/health", (req, res) => {

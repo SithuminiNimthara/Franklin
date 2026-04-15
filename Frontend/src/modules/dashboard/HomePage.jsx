@@ -13,6 +13,7 @@ export default function HomePage({ onTabChange }) {
   const { user } = useUser();
   const [mainCamera, setMainCamera] = useState(null);
   const [healthStats, setHealthStats] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const API_BASE = API_BASE_URL.replace(/\/api$/, '');
@@ -22,7 +23,7 @@ export default function HomePage({ onTabChange }) {
       setLoading(true);
       await Promise.allSettled([
         fetchMainCamera(),
-        fetchSystemData()
+        fetchDashboardStats()
       ]);
       setLoading(false);
     };
@@ -47,21 +48,78 @@ export default function HomePage({ onTabChange }) {
     }
   };
 
-  const fetchSystemData = async () => {
+  const fetchDashboardStats = async () => {
     try {
       const token = await getToken();
-      const res = await axios.get(`${API_BASE}/api/health/stats`, {
+      const res = await axios.get(`${API_BASE}/api/dashboard/stats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setHealthStats(res.data);
+      if (res.data.success) {
+        setDashboardData(res.data.data);
+
+        // Also set healthStats for backward compatibility
+        setHealthStats({
+          stats: res.data.data.health
+        });
+      }
     } catch (error) {
-      console.error('[HomePage] System data fetch error:', error);
+      console.error('[HomePage] Dashboard stats fetch error:', error);
+      // Fallback: try fetching health stats directly
+      try {
+        const token = await getToken();
+        const res = await axios.get(`${API_BASE}/api/health/stats`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setHealthStats(res.data);
+      } catch (e) {
+        console.error('[HomePage] Health fallback also failed:', e);
+      }
     }
   };
 
   const streamUrl = mainCamera
     ? `${API_BASE_URL.replace(/\/api$/, '')}/streams/${mainCamera._id}/stream.m3u8`
     : null;
+
+  // ── Helper: format large numbers with commas ──
+  const formatNumber = (num) => {
+    if (num == null) return '0';
+    return Number(num).toLocaleString();
+  };
+
+  // ── Helper: build trend text ──
+  const trendText = (trend, period) => {
+    if (trend == null) return '';
+    const arrow = trend >= 0 ? '↑' : '↓';
+    return `${arrow} ${Math.abs(trend)}% ${period || ''}`;
+  };
+
+  // ── Derive display values from real data ──
+  const stats = {
+    turtlesMonitored: dashboardData?.turtlesMonitored?.total ?? 0,
+    turtlesTrend: trendText(dashboardData?.turtlesMonitored?.trend, dashboardData?.turtlesMonitored?.period),
+    activeNests: dashboardData?.activeNests?.total ?? 0,
+    nestsSubtext: `${dashboardData?.activeNests?.protectedToday ?? 0} protected today`,
+    activeAlerts: dashboardData?.activeAlerts?.total ?? 0,
+    alertsSubtext: `${dashboardData?.activeAlerts?.requireAttention ?? 0} require attention`,
+    hatchlingsTracked: dashboardData?.hatchlingsTracked?.total ?? 0,
+    hatchlingsTrend: trendText(dashboardData?.hatchlingsTracked?.trend, dashboardData?.hatchlingsTracked?.period),
+    totalScans: dashboardData?.scans?.total ?? 0,
+    scansToday: dashboardData?.scans?.today ?? 0,
+    threatsActive: dashboardData?.threats?.active ?? 0,
+    riskStatus: dashboardData?.shorelineRisk?.currentStatus ?? 'Low',
+    riskMessage: dashboardData?.shorelineRisk?.message ?? 'No data available',
+    highRisk: dashboardData?.shorelineRisk?.highRisk ?? 0,
+    stable: dashboardData?.shorelineRisk?.stable ?? 0,
+  };
+
+  // ── Shoreline risk bar height + color ──
+  const riskBarConfig = {
+    'Critical': { height: '90%', colorFrom: 'from-red-600', colorTo: 'to-red-400', textColor: 'text-red-400' },
+    'Moderate': { height: '65%', colorFrom: 'from-orange-600', colorTo: 'to-orange-400', textColor: 'text-orange-400' },
+    'Low': { height: '30%', colorFrom: 'from-emerald-600', colorTo: 'to-emerald-400', textColor: 'text-emerald-400' },
+  };
+  const riskBar = riskBarConfig[stats.riskStatus] || riskBarConfig['Low'];
 
   return (
     <div className="space-y-8 pb-4">
@@ -79,33 +137,33 @@ export default function HomePage({ onTabChange }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10 animate-slideUp delay-300">
         <StatSummaryCard
           icon={Activity}
-          value="127"
+          value={formatNumber(stats.turtlesMonitored)}
           label="Turtles Monitored"
-          subtext="↑ 12% this week"
+          subtext={stats.turtlesTrend || 'No change'}
           colorTheme="blue"
           className=""
         />
         <StatSummaryCard
           icon={Video}
-          value="43"
+          value={formatNumber(stats.activeNests)}
           label="Active Nests"
-          subtext="8 protected today"
+          subtext={stats.nestsSubtext}
           colorTheme="teal"
           className="delay-75"
         />
         <StatSummaryCard
           icon={AlertCircle}
-          value="5"
+          value={formatNumber(stats.activeAlerts)}
           label="Active Alerts"
-          subtext="3 require attention"
+          subtext={stats.alertsSubtext}
           colorTheme="amber"
           className="delay-150"
         />
         <StatSummaryCard
           icon={Droplets}
-          value="234"
+          value={formatNumber(stats.hatchlingsTracked)}
           label="Hatchlings Tracked"
-          subtext="↑ 18% vs last month"
+          subtext={stats.hatchlingsTrend || 'No change'}
           colorTheme="purple"
           className="delay-200"
         />
@@ -176,8 +234,8 @@ export default function HomePage({ onTabChange }) {
                 <div>
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-bold tracking-wider uppercase mb-1.5 block">Total Scans</span>
                   <div className="flex items-end gap-2.5">
-                    <span className="font-black text-3xl text-slate-900 dark:text-white leading-none">1,492</span>
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-0.5 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">+42 today</span>
+                    <span className="font-black text-3xl text-slate-900 dark:text-white leading-none">{formatNumber(stats.totalScans)}</span>
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-0.5 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">+{formatNumber(stats.scansToday)} today</span>
                   </div>
                 </div>
                 <div className="bg-white dark:bg-slate-700/50 p-3 rounded-xl shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 border border-slate-100 dark:border-transparent">
@@ -188,8 +246,10 @@ export default function HomePage({ onTabChange }) {
                 <div>
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-bold tracking-wider uppercase mb-1.5 block">Threats Detected</span>
                   <div className="flex items-end gap-2.5">
-                    <span className="font-black text-3xl text-slate-900 dark:text-white leading-none">3</span>
-                    <span className="text-[10px] font-black text-rose-50 bg-rose-500 dark:text-rose-200 dark:bg-rose-600/80 px-2 py-0.5 rounded-full mb-0.5 tracking-wider uppercase shadow-sm">Active</span>
+                    <span className="font-black text-3xl text-slate-900 dark:text-white leading-none">{formatNumber(stats.threatsActive)}</span>
+                    {stats.threatsActive > 0 && (
+                      <span className="text-[10px] font-black text-rose-50 bg-rose-500 dark:text-rose-200 dark:bg-rose-600/80 px-2 py-0.5 rounded-full mb-0.5 tracking-wider uppercase shadow-sm">Active</span>
+                    )}
                   </div>
                 </div>
                 <div className="bg-white dark:bg-slate-700/50 p-3 rounded-xl shadow-sm group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 border border-slate-100 dark:border-transparent">
@@ -198,11 +258,6 @@ export default function HomePage({ onTabChange }) {
               </div>
             </div>
 
-            {/* <div className="mt-6">
-              <Button className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 border-none shadow-lg shadow-teal-500/25 text-white font-bold tracking-widest uppercase group py-4">
-                Open Live Intelligence <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </div> */}
             <Button
               variant="secondary"
               className="w-full mt-6 text-xs font-bold uppercase tracking-widest group hover:border-slate-300 dark:hover:border-slate-600 py-3.5"
@@ -269,16 +324,16 @@ export default function HomePage({ onTabChange }) {
 
               <div className="relative z-10 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1.5">Current Status</p>
-                  <p className="text-3xl font-black text-white drop-shadow-md">Moderate</p>
-                  <div className="flex items-center gap-1.5 mt-3 text-orange-200/70 text-xs font-semibold bg-orange-900/30 px-2 py-1 rounded-md border border-orange-500/20 w-max backdrop-blur-sm">
-                    <Info className="w-3.5 h-3.5 text-orange-400" /> Area 4 approaches high runup
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${riskBar.textColor} mb-1.5`}>Current Status</p>
+                  <p className="text-3xl font-black text-white drop-shadow-md">{stats.riskStatus}</p>
+                  <div className={`flex items-center gap-1.5 mt-3 text-orange-200/70 text-xs font-semibold bg-orange-900/30 px-2 py-1 rounded-md border border-orange-500/20 w-max backdrop-blur-sm`}>
+                    <Info className="w-3.5 h-3.5 text-orange-400" /> {stats.riskMessage.length > 40 ? stats.riskMessage.substring(0, 40) + '…' : stats.riskMessage}
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-1 items-end">
                   <div className="w-2.5 h-12 rounded-full bg-slate-800 shadow-inner border border-slate-700 flex flex-col justify-end overflow-hidden">
-                    <div className="w-full h-[65%] bg-gradient-to-t from-orange-600 to-orange-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(251,146,60,0.5)]"></div>
+                    <div className={`w-full bg-gradient-to-t ${riskBar.colorFrom} ${riskBar.colorTo} rounded-full animate-pulse shadow-[0_0_10px_rgba(251,146,60,0.5)]`} style={{ height: riskBar.height }}></div>
                   </div>
                 </div>
               </div>
@@ -287,14 +342,18 @@ export default function HomePage({ onTabChange }) {
             <div className="grid grid-cols-2 gap-4 mt-5">
               <div className="bg-orange-50/50 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900/30 p-4 rounded-xl flex flex-col items-center justify-center shadow-sm">
                 <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 tracking-widest mb-1.5">High Risk</span>
-                <span className="text-2xl font-black text-orange-700 dark:text-orange-300 drop-shadow-sm">4</span>
+                <span className="text-2xl font-black text-orange-700 dark:text-orange-300 drop-shadow-sm">{formatNumber(stats.highRisk)}</span>
               </div>
               <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 p-4 rounded-xl flex flex-col items-center justify-center shadow-sm">
                 <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-widest mb-1.5">Stable</span>
-                <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300 drop-shadow-sm">32</span>
+                <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300 drop-shadow-sm">{formatNumber(stats.stable)}</span>
               </div>
             </div>
-            <Button variant="secondary" className="w-full mt-6 text-xs font-bold uppercase tracking-widest group hover:border-slate-300 dark:hover:border-slate-600 py-3.5">
+            <Button
+              variant="secondary"
+              className="w-full mt-6 text-xs font-bold uppercase tracking-widest group hover:border-slate-300 dark:hover:border-slate-600 py-3.5"
+              onClick={() => onTabChange && onTabChange('shoreline')}
+            >
               View Intel Map <ArrowRight className="w-4 h-4 ml-1.5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
             </Button>
           </DashboardCard>
