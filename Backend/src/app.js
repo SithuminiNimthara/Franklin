@@ -15,6 +15,8 @@ import hatcheryRoutes from "./modules/hatchery/hatchery.routes.js";
 import alertsRoutes from "./modules/alerts/alerts.routes.js";
 import profileRoutes from "./modules/users/profile.routes.js";
 import cameraRoutes from "./modules/cameras/camera.routes.js";
+import analyticsRoutes from "./modules/analytics/analytics.routes.js";
+import reportsRoutes from "./modules/reports/reports.routes.js";
 
 const app = express();
 
@@ -98,6 +100,8 @@ app.use("/api/hatchery", hatcheryRoutes);
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/cameras", cameraRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/reports", reportsRoutes);
 
 // Health route
 app.get("/health", (req, res) => {
