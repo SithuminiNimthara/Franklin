@@ -83,19 +83,24 @@ class UnifiedProcessor:
             return frame, []
 
         orig_h, orig_w = frame.shape[:2]
-        
-        # AI Internal Resize for speed (YOLO usually uses 640x640)
-        # We don't resize the 'annotated_frame' back yet, we draw on the original or a copy
-        # --- INFERENCE STEP (Parallelized) ---
-        def run_model(key, model, img, **kwargs):
+
+        def run_model(key, model, img):
             try:
-                # Set imgsz to 320 for significant speedup on CPU while maintaining decent accuracy
-                results = model(img, verbose=False, conf=0.4, imgsz=320, **kwargs)
+                # Different confidence per model
+                conf = 0.4
+                if key == 'predator':
+                    conf = 0.6   # stricter
+                if key == 'human':
+                    conf = 0.5
+
+                results = model(img, verbose=False, conf=conf, imgsz=320)
+
                 dets = []
                 for r in results:
                     for box in r.boxes:
                         x1, y1, x2, y2 = box.xyxy[0].tolist()
                         cx, by = (x1 + x2) / 2, y2
+
                         dets.append({
                             "type": key,
                             "score": float(box.conf[0]),
@@ -105,140 +110,128 @@ class UnifiedProcessor:
                         })
                 return dets
             except Exception as e:
-                print(f"Parallel inference error ({key}): {e}")
+                print(f"Inference error ({key}): {e}")
                 return []
 
-        # Get models
+        # Load models
         model_t = self.load_model('turtle')
         model_p = self.load_model('predator')
         model_h = self.load_model('human')
 
-        # Launch futures
-        frame_dets = []
+        # Parallel inference
         futures = []
-        if model_t: futures.append(self.executor.submit(run_model, 'turtle', model_t, frame))
-        if model_p: futures.append(self.executor.submit(run_model, 'predator', model_p, frame))
-        if model_h: futures.append(self.executor.submit(run_model, 'human', model_h, frame, classes=[0]))
+        if model_t:
+            futures.append(self.executor.submit(run_model, 'turtle', model_t, frame))
+        if model_p:
+            futures.append(self.executor.submit(run_model, 'predator', model_p, frame))
+        if model_h:
+            futures.append(self.executor.submit(run_model, 'human', model_h, frame))
 
-        # Collect results
+        frame_dets = []
         for f in futures:
             frame_dets.extend(f.result())
 
-        # NMS
-        final_dets = []
+        # ----------------------------
+        # STEP 1: SORT BY CONFIDENCE
+        # ----------------------------
         frame_dets.sort(key=lambda x: x['score'], reverse=True)
+
+        # ----------------------------
+        # STEP 2: CLASS-AWARE NMS
+        # ----------------------------
+        final_dets = []
+
         for det in frame_dets:
-            overlap = False
+            keep = True
             for other in final_dets:
                 b1 = det['bbox']
                 b2 = other['bbox']
-                # Fast IOU
+
                 x_left = max(b1[0], b2[0])
                 y_top = max(b1[1], b2[1])
                 x_right = min(b1[2], b2[2])
                 y_bottom = min(b1[3], b2[3])
+
                 if x_right > x_left and y_bottom > y_top:
                     inter = (x_right - x_left) * (y_bottom - y_top)
                     area1 = (b1[2]-b1[0])*(b1[3]-b1[1])
                     area2 = (b2[2]-b2[0])*(b2[3]-b2[1])
                     iou = inter / (area1 + area2 - inter)
-                    if iou > 0.5:
-                        overlap = True
+
+                    # SAME CLASS → normal suppression
+                    if det['type'] == other['type'] and iou > 0.5:
+                        keep = False
                         break
-            if not overlap:
+
+                    # DIFFERENT CLASS → priority logic
+                    if iou > 0.4:
+                        # Turtle has highest priority
+                        if other['type'] == 'turtle':
+                            keep = False
+                            break
+
+            if keep:
                 final_dets.append(det)
 
-        now = time.time()
+        # ----------------------------
+        # STEP 3: EXTRA FILTER
+        # If turtle exists → remove overlapping predator/human
+        # ----------------------------
+        turtles = [d for d in final_dets if d['type'] == 'turtle']
+
+        filtered = []
+        for det in final_dets:
+            if det['type'] in ['predator', 'human']:
+                suppress = False
+
+                for t in turtles:
+                    b1 = det['bbox']
+                    b2 = t['bbox']
+
+                    x_left = max(b1[0], b2[0])
+                    y_top = max(b1[1], b2[1])
+                    x_right = min(b1[2], b2[2])
+                    y_bottom = min(b1[3], b2[3])
+
+                    if x_right > x_left and y_bottom > y_top:
+                        inter = (x_right - x_left) * (y_bottom - y_top)
+                        area1 = (b1[2]-b1[0])*(b1[3]-b1[1])
+                        area2 = (b2[2]-b2[0])*(b2[3]-b2[1])
+                        iou = inter / (area1 + area2 - inter)
+
+                        if iou > 0.3:
+                            suppress = True
+                            break
+
+                if suppress:
+                    continue
+
+            filtered.append(det)
+
+        final_dets = filtered
+
+        # ----------------------------
+        # DRAWING + EXISTING LOGIC
+        # ----------------------------
         annotated_frame = frame.copy()
-        
-        current_turtles = [d for d in final_dets if d['type'] == 'turtle']
-        
-        # Match existing tracks for nesting logic
-        for turtle in current_turtles:
-            matched = False
-            for track in self.turtle_tracks:
-                dist = math.sqrt((track['x'] - turtle['map_x'])**2 + (track['y'] - turtle['map_y'])**2)
-                if dist < 2.0: # 2m threshold
-                    track['last_seen'] = now
-                    track['x'] = (track['x'] * 0.9) + (turtle['map_x'] * 0.1)
-                    track['y'] = (track['y'] * 0.9) + (turtle['map_y'] * 0.1)
-
-                    duration = now - track['start_time']
-                    if duration >= NEST_TIME_THRESHOLD:
-                         final_dets.append({
-                             "type": "nest",
-                             "score": 1.0,
-                             "bbox": turtle['bbox'],
-                             "map_x": track['x'],
-                             "map_y": track['y'],
-                             "is_ai_nest": True
-                         })
-                    matched = True
-                    break
-            
-            if not matched:
-                self.turtle_tracks.append({
-                    "x": turtle['map_x'],
-                    "y": turtle['map_y'],
-                    "start_time": now,
-                    "last_seen": now
-                })
-
-        self.turtle_tracks = [t for t in self.turtle_tracks if (now - t['last_seen']) < 15]
-
-        # Tracking for Reporting Deduplication
-        if not hasattr(self, 'last_reported'):
-            self.last_reported = {} # {type: {pos: (x,y), time: t}}
 
         for d in final_dets:
-            # Draw
             x1, y1, x2, y2 = [int(v) for v in d['bbox']]
-            color = (0, 255, 0) if d['type'] == 'turtle' else (0, 0, 255) if d['type'] == 'predator' else (255, 0, 0)
-            if d['type'] == 'nest': color = (255, 255, 0)
-            
-            label = f"{d['type']} {d['score']:.2f}"
-            if d.get('is_ai_nest'): label = "NESTING TURTLE"
-            
-            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(annotated_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-            # Reporting Deduplication Logic:
-            # Only report if:
-            # 1. It's a predator or human (higher priority)
-            # 2. It has moved more than 5 units
-            # 3. Or it's been more than 2 seconds since last report of this type
-            
-            should_report = False
-            dtype = d['type']
-            dx, dy = d['map_x'], d['map_y']
-            
-            if dtype not in self.last_reported:
-                should_report = True
+            if d['type'] == 'turtle':
+                color = (0, 255, 0)
+            elif d['type'] == 'predator':
+                color = (0, 0, 255)
+            elif d['type'] == 'human':
+                color = (255, 0, 0)
             else:
-                last = self.last_reported[dtype]
-                dist = math.sqrt((dx - last['x'])**2 + (dy - last['y'])**2)
-                time_since = now - last['time']
-                
-                if dist > 5.0 or time_since > 2.0:
-                    should_report = True
-            
-            if should_report:
-                self.last_reported[dtype] = {'x': dx, 'y': dy, 'time': now}
-                payload = {
-                    "type": d['type'],
-                    "confidence": d['score'],
-                    "location": {"zone": f"Camera {source_id}", "coordinates": {"x": d['map_x'], "y": d['map_y']}},
-                    "nestStatus": "safe",
-                    "videoSource": source_id,
-                    "isLive": True,
-                    "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                    "details": "AI DETECTED NESTER" if d.get('is_ai_nest') else ""
-                }
-                try:
-                    # Use non-blocking put to ensure AI NEVER slows down even if network reporting lags
-                    self.report_queue.put(payload, block=False)
-                except queue.Full:
-                    pass # Silently drop reports if queue is jammed (better than freezing video)
+                color = (255, 255, 0)
+
+            label = f"{d['type']} {d['score']:.2f}"
+
+            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(annotated_frame, label, (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
         return annotated_frame, final_dets
 
