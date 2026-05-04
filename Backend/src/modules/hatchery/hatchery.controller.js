@@ -117,7 +117,7 @@ export const uploadFootage = async (req, res) => {
     res.status(201).json({
       message: "Upload successful",
       videoId: newVideo._id,
-      streamUrl: `${config.models.hatchery}/ai/hatchery/stream/upload_${newVideo._id}`,
+      streamUrl: `${BACKEND_URL}/hatchery/stream/upload_${newVideo._id}`,
       rawVideoUrl: videoUrl,
     });
   } catch (error) {
