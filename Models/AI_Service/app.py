@@ -755,10 +755,14 @@ def stream_hatchery(video_id: str):
 @app.get("/ai/hatchery/data/{video_id}")
 def data_hatchery(video_id: str):
     hatchery = get_hatchery()
-    return hatchery.states.get(
-        video_id,
-        {"status": "Offline", "health": "Unknown", "species": "Unknown"},
-    )
+    s = hatchery.states.get(video_id)
+    if not s:
+        return {"status": "Offline", "health": "Unknown", "species": "Unknown"}
+    return {
+        "status": s.get("status", "Unknown"),
+        "health": s.get("health", "Unknown"),
+        "species": s.get("species", "Detecting..."),
+    }
 
 
 

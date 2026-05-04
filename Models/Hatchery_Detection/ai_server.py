@@ -17,6 +17,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "best.pt")
 VIDEO_DIR = os.path.join(BASE_DIR, "test_videos")
 NODE_API_URL = os.environ.get("NODE_API_URL", "http://localhost:5002")
+HATCHERY_API = f"{NODE_API_URL}/api/hatchery" 
 
 # CONSTANTS
 PIXELS_PER_CM = 25.0
@@ -40,6 +41,7 @@ DEFAULT_TANK_CONFIG = {
     "tankD": os.path.join(VIDEO_DIR, "IMG_3163.MOV")
 }
 
+
 class EnhancedBehaviorAnalyzer:
     """
     Multi-parameter behavioral analysis system for sea turtle hatchlings.
@@ -51,76 +53,74 @@ class EnhancedBehaviorAnalyzer:
         self.tilt_history = deque(maxlen=300)
         self.dive_attempts = deque(maxlen=1800)
         self.movement_patterns = deque(maxlen=3600)
-        
-    def analyze_behavior(self, bbox_width, bbox_height, center_x, center_y, 
+
+    def analyze_behavior(self, bbox_width, bbox_height, center_x, center_y,
                          history, fps, frame_height, frame_width):
         """
-        Comprehensive behavior assessment using 5 research-based indicators
+        Comprehensive behavior assessment using 5 research-based indicators.
         Returns: status, color, health, reasons
         """
         floater_score = 0
         reasons = []
-        
+
         # 1. SURFACE TIME ANALYSIS
         relative_depth = self._calculate_depth_indicator(
             center_y, bbox_width, bbox_height, frame_height
         )
         self.depth_history.append(relative_depth)
-        
+
         is_at_surface = relative_depth < 0.3
         self.surface_time_ratio.append(is_at_surface)
-        
+
         if len(self.surface_time_ratio) >= 60:
             surface_percentage = sum(self.surface_time_ratio) / len(self.surface_time_ratio)
-            
             if surface_percentage > SURFACE_FLOAT_THRESHOLD:
                 floater_score += 3
                 reasons.append(f"Surface time: {surface_percentage:.1%}")
-        
+
         # 2. LATERAL TILT DETECTION
         tilt_indicator = self._detect_lateral_tilt(bbox_width, bbox_height)
         self.tilt_history.append(tilt_indicator)
-        
+
         if len(self.tilt_history) >= 60:
             persistent_tilt = sum(self.tilt_history) > (len(self.tilt_history) * 0.6)
             if persistent_tilt:
                 floater_score += 3
                 reasons.append("Lateral tilt detected")
-        
+
         # 3. MOVEMENT PATTERN VARIABILITY
         if len(history) >= 30:
             speeds = self._calculate_speed_sequence(history, fps)
             if len(speeds) > 0:
                 speed_variance = np.std(speeds) / (np.mean(speeds) + 1e-6)
-                
                 if speed_variance < SPEED_VARIANCE_THRESHOLD:
                     floater_score += 2
                     reasons.append("Monotonous movement")
-        
+
         # 4. DIVE ATTEMPT FREQUENCY
         if len(history) >= 5:
             dive_attempt = self._detect_dive_attempt(history)
             self.dive_attempts.append(dive_attempt)
-            
+
             if len(self.dive_attempts) >= 60 * fps:
-                dive_rate = sum(self.dive_attempts[-int(60*fps):]) / 60.0 * fps
+                dive_rate = sum(self.dive_attempts[-int(60 * fps):]) / 60.0 * fps
                 if dive_rate < MIN_DIVE_ATTEMPTS:
                     floater_score += 2
                     reasons.append(f"Low dive rate: {dive_rate:.1f}/min")
-        
+
         # 5. SPEED RELATIVE TO BODY LENGTH
         body_length_cm = max(bbox_width, bbox_height) / PIXELS_PER_CM
         if len(history) >= 10:
             distance = sum(np.linalg.norm(
-                np.array(history[i]) - np.array(history[i-1])
+                np.array(history[i]) - np.array(history[i - 1])
             ) for i in range(1, len(history)))
             speed_cm_s = (distance / PIXELS_PER_CM) / (len(history) / fps)
             speed_bl_s = speed_cm_s / (body_length_cm + 0.1)
-            
+
             if speed_bl_s < BL_SPEED_THRESHOLD:
                 floater_score += 1
                 reasons.append(f"Low speed: {speed_bl_s:.2f} BL/s")
-        
+
         # CLASSIFICATION BASED ON COMPOSITE SCORE
         if floater_score >= 5:
             status = "CRITICAL - Floater"
@@ -134,34 +134,33 @@ class EnhancedBehaviorAnalyzer:
             status = "Normal"
             color = (0, 255, 0)
             health = "Healthy"
-        
+
         return status, color, health, reasons
-    
+
     def _calculate_depth_indicator(self, cy, w, h, frame_h):
         y_ratio = cy / frame_h
         size_score = (w * h) / (frame_h * frame_h * 0.25)
         depth_score = (1 - y_ratio) * 0.7 + min(size_score, 1.0) * 0.3
         return depth_score
-    
+
     def _detect_lateral_tilt(self, w, h):
         aspect_ratio = w / (h + 1e-6)
-        return 1 if (aspect_ratio < LATERAL_TILT_ANGLE_MIN or 
+        return 1 if (aspect_ratio < LATERAL_TILT_ANGLE_MIN or
                      aspect_ratio > LATERAL_TILT_ANGLE_MAX) else 0
-    
+
     def _calculate_speed_sequence(self, history, fps):
         speeds = []
         window = min(10, len(history) - 1)
         if window < 2:
             return speeds
-            
         for i in range(len(history) - window):
             dist = np.linalg.norm(
-                np.array(history[i+window]) - np.array(history[i])
+                np.array(history[i + window]) - np.array(history[i])
             )
             speed = (dist / PIXELS_PER_CM) / (window / fps)
             speeds.append(speed)
         return speeds
-    
+
     def _detect_dive_attempt(self, history):
         if len(history) < 5:
             return 0
@@ -169,10 +168,9 @@ class EnhancedBehaviorAnalyzer:
         y_change = abs(recent_y[-1] - recent_y[0])
         return 1 if y_change > 20 else 0
 
+
 class VideoController:
     def __init__(self):
-     
-        
         self.models = {}
         self.video_sources = DEFAULT_TANK_CONFIG.copy()
         self.states = {}
@@ -180,15 +178,14 @@ class VideoController:
         self.alerts = []
         self.last_alert_time = {}
         self.behavior_analyzers = {}
-        
+        self.last_confirmed = {}  # tracks last alerted state per tank
+
         # Load models for default tanks
         for tid in self.video_sources.keys():
             self._init_tank_state(tid)
             print(f"Loading YOLO model for {tid}...")
             self.models[tid] = YOLO(MODEL_PATH)
             self.behavior_analyzers[tid] = {}
-        
-        #print("All models loaded successfully")
 
     def _init_tank_state(self, video_id):
         self.states[video_id] = {
@@ -203,36 +200,48 @@ class VideoController:
             "status_buffer": deque(maxlen=CONFIRMATION_WINDOW),
             "health_buffer": deque(maxlen=CONFIRMATION_WINDOW)
         }
+        self.last_confirmed[video_id] = {
+            "species_key": None,
+            "status": None
+        }
 
     def register_video(self, video_id, path):
         """Register a newly uploaded video"""
         print(f"\nRegistering upload: {video_id}")
         print(f"Video path: {path}")
-        
+
         if not path.startswith("http") and not os.path.exists(path):
             print(f"Video file not found: {path}")
             return False
-        
-        # Add to video sources
+
         self.video_sources[video_id] = path
-        
-        # Initialize state, monitoring, and model
         self._init_tank_state(video_id)
         print(f"Loading YOLO model for {video_id}...")
         self.models[video_id] = YOLO(MODEL_PATH)
         self.behavior_analyzers[video_id] = {}
-        
+
         print(f"Upload registered successfully: {video_id}")
         return True
+
+    def get_safe_state(self, video_id):
+        """Return a serialization-safe snapshot of tank state (no deques/defaultdicts)"""
+        s = self.states.get(video_id)
+        if not s:
+            return {"status": "Offline", "health": "Unknown", "species": "Unknown"}
+        return {
+            "status": s.get("status", "Unknown"),
+            "health": s.get("health", "Unknown"),
+            "species": s.get("species", "Detecting..."),
+        }
 
     def generate_frames(self, video_id):
         """Generate MJPEG stream for a specific tank or uploaded video"""
         path = self.video_sources.get(video_id)
-        
+
         if not path:
             print(f"Video ID not found: {video_id}")
             return
-        
+
         if not os.path.exists(path):
             print(f"Video file not found: {video_id} at {path}")
             return
@@ -251,14 +260,14 @@ class VideoController:
 
         model = self.models.get(video_id)
         if model is None:
-            print(f"📦 Loading model for {video_id}...")
+            print(f"Loading model for {video_id}...")
             self.models[video_id] = YOLO(MODEL_PATH)
             model = self.models[video_id]
 
         frame_count = 0
         last_result = None
 
-        print(f"▶️ Streaming {video_id} @ {fps:.1f} FPS ({w}x{h})")
+        print(f"📹 Starting stream for {video_id} from {path}")
 
         while cap.isOpened():
             start_time = time.time()
@@ -323,7 +332,7 @@ class VideoController:
 
             if tid not in self.behavior_analyzers[video_id]:
                 self.behavior_analyzers[video_id][tid] = EnhancedBehaviorAnalyzer()
-            
+
             analyzer = self.behavior_analyzers[video_id][tid]
 
             status, color, health, reasons = analyzer.analyze_behavior(
@@ -345,19 +354,20 @@ class VideoController:
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
             label = f"{species} - {status}"
-            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 
-                       0.5, color, 2)
-            
+            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5, color, 2)
+
             if reasons and health != "Healthy":
                 for idx, reason in enumerate(reasons[:2]):
-                    cv2.putText(frame, reason, (x1, y2 + 15 + idx*15), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                    cv2.putText(frame, reason, (x1, y2 + 15 + idx * 15),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
         self._update_logic(video_id, frame_species, frame_statuses, frame_healths)
 
     def _update_logic(self, video_id, frame_species, frame_statuses, frame_healths):
-        """Update tank state and trigger alerts based on confirmed patterns"""
+        """Update tank state and trigger alerts only on confirmed state transitions"""
         monitor = self.monitoring[video_id]
+        lc = self.last_confirmed[video_id]
 
         if any("CRITICAL" in s for s in frame_statuses):
             current_status = "CRITICAL - Floater"
@@ -376,35 +386,20 @@ class VideoController:
         if len(monitor["status_buffer"]) >= CONFIRMATION_WINDOW:
             all_s = [s for sub in monitor["species_buffer"] for s in sub]
             counts = Counter(all_s)
-            valid_species = [s for s, c in counts.items() 
-                           if c > CONFIRMATION_WINDOW * 0.3]
-            
-            if len(valid_species) > 1:
-                species_list = ", ".join(sorted(valid_species))
-                self._trigger_alert(
-                    video_id, 
-                    "species_mixing", 
-                    f"Mixed species detected: {species_list}. Separation recommended."
-                )
-                print(f"🐢 SPECIES MIXING ALERT: {species_list} in {video_id}")
-            
-            final_species = ", ".join(valid_species) if valid_species else "None"
+            valid_species = [s for s, c in counts.items()
+                             if c > CONFIRMATION_WINDOW * 0.3]
 
-            critical_count = sum(1 for s in monitor["status_buffer"] 
-                               if "CRITICAL" in s)
-            warning_count = sum(1 for s in monitor["status_buffer"] 
-                              if "WARNING" in s)
+            final_species = ", ".join(sorted(valid_species)) if valid_species else "None"
+
+            critical_count = sum(1 for s in monitor["status_buffer"] if "CRITICAL" in s)
+            warning_count = sum(1 for s in monitor["status_buffer"] if "WARNING" in s)
 
             if critical_count > (CONFIRMATION_WINDOW * 0.5):
                 final_status = "CRITICAL - Floater"
                 final_health = "Critical"
-                self._trigger_alert(video_id, "behavior", 
-                                  "CRITICAL: Floater hatchling detected")
             elif warning_count > (CONFIRMATION_WINDOW * 0.5):
                 final_status = "WARNING - Abnormal"
                 final_health = "Concerning"
-                self._trigger_alert(video_id, "behavior", 
-                                  "WARNING: Abnormal behavior detected")
             else:
                 final_status = "Normal"
                 final_health = "Healthy"
@@ -414,7 +409,38 @@ class VideoController:
                 "status": final_status,
                 "health": final_health
             })
-            
+
+            # --- SPECIES ALERT: only fire when confirmed species set changes ---
+            new_species_key = frozenset(valid_species)
+            if new_species_key != lc["species_key"]:
+                if len(valid_species) > 1:
+                    species_list = ", ".join(sorted(valid_species))
+                    sent = self._trigger_alert(
+                        video_id,
+                        "species_mixing",
+                        f"Mixed species detected in {video_id}: {species_list}. Separation recommended."
+                    )
+                    if sent:
+                        lc["species_key"] = new_species_key
+                else:
+                    lc["species_key"] = new_species_key
+
+            # --- BEHAVIOR ALERT: only fire on status transitions to abnormal ---
+            if final_status != lc["status"]:
+                lc["status"] = final_status
+                if final_status == "CRITICAL - Floater":
+                    self._trigger_alert(
+                        video_id,
+                        "behavior",
+                        f"CRITICAL: Floater hatchling detected in {video_id}. Immediate attention required."
+                    )
+                elif final_status == "WARNING - Abnormal":
+                    self._trigger_alert(
+                        video_id,
+                        "behavior",
+                        f"WARNING: Abnormal behavior detected in {video_id}. Please inspect."
+                    )
+
             # Update MongoDB for uploaded videos
             if video_id.startswith("upload_"):
                 self._update_mongodb_analysis(video_id, final_species, final_status, final_health)
@@ -423,7 +449,7 @@ class VideoController:
         """Update MongoDB with analysis results for uploaded videos"""
         try:
             response = requests.post(
-                f"{NODE_API_URL}/api/hatchery/video/{video_id}/analysis",
+                f"{HATCHERY_API}/video/{video_id}/analysis",  # ← uses HATCHERY_API
                 json={
                     "species": species,
                     "behavior": behavior,
@@ -439,46 +465,58 @@ class VideoController:
             print(f"MongoDB update failed: {e}")
 
     def _trigger_alert(self, tank_id, alert_type, message):
-        """Trigger and save alert to both memory and database"""
+        """
+        Send alert to Node backend and save to MongoDB.
+        Returns True if alert was sent, False if suppressed or failed.
+        """
         current_time = datetime.now()
         alert_key = f"{tank_id}_{alert_type}"
 
-        if alert_key not in self.last_alert_time or \
-           (current_time - self.last_alert_time[alert_key]).total_seconds() > 60:
-            
-            payload = {
-                "type": alert_type,
-                "message": message,
-                "tank": tank_id,
-                "location": f"Hatchery Section {tank_id[-1].upper()}",
-                "status": "pending",
-                "createdAt": current_time.isoformat()
-            }
+        # Cooldown: 5 minutes between same alert type per tank
+        if alert_key in self.last_alert_time:
+            elapsed = (current_time - self.last_alert_time[alert_key]).total_seconds()
+            if elapsed < 300:
+                print(f"[COOLDOWN] Alert suppressed for {alert_key}, {elapsed:.0f}s elapsed")
+                return False
 
-            self.alerts.append(payload)
-            
-            if len(self.alerts) > 100:
-                self.alerts.pop(0)
+        payload = {
+            "type": alert_type,
+            "message": message,
+            "tank": tank_id,
+            "location": f"Hatchery Section {tank_id[-1].upper()}",
+            "status": "pending",
+            "createdAt": current_time.isoformat()
+        }
 
-            try:
-                response = requests.post(
-                    f"{NODE_API_URL}/alerts/new", 
-                    json=payload, 
-                    timeout=2
-                )
-                if response.status_code == 201:
-                    print(f"Alert saved to DB: {tank_id} - {message}")
-                else:
-                    print(f"Alert save returned {response.status_code}")
-            except Exception as e:
-                print(f"Database sync failed: {e}")
+        # Keep in-memory copy
+        self.alerts.append(payload)
+        if len(self.alerts) > 100:
+            self.alerts.pop(0)
 
-            self.last_alert_time[alert_key] = current_time
+        # POST to correct Node endpoint
+        try:
+            response = requests.post(
+                f"{HATCHERY_API}/alerts/new",  # ← fixed: was NODE_API_URL/alerts/new
+                json=payload,
+                timeout=2
+            )
+            if response.status_code == 201:
+                print(f"[ALERT SENT] {tank_id} - {message}")
+                self.last_alert_time[alert_key] = current_time
+                return True
+            else:
+                print(f"[ALERT FAILED] Status {response.status_code}: {response.text}")
+                return False
+        except Exception as e:
+            print(f"[ALERT ERROR] {e}")
+            return False
+
 
 # Initialize controller
 engine = VideoController()
 
-# ROUTES
+
+# ── ROUTES ──────────────────────────────────────────────────────────────────
 
 @app.route("/stream/<video_id>")
 def stream(video_id):
@@ -488,24 +526,21 @@ def stream(video_id):
         mimetype="multipart/x-mixed-replace; boundary=frame"
     )
 
+
 @app.route("/data/<video_id>")
 def data(video_id):
-    """Get current stats for a tank or uploaded video"""
-    s = engine.states.get(video_id, {
-        "status": "Offline", 
-        "health": "Unknown", 
-        "species": "Unknown"
-    })
-    return jsonify({
-        "status": s["status"], 
-        "health": s["health"], 
-        "species": s["species"]
-    })
+    """
+    Get current stats for a tank or uploaded video.
+    Uses get_safe_state() to avoid RuntimeError from dict-size-change during serialization.
+    """
+    return jsonify(engine.get_safe_state(video_id))
+
 
 @app.route("/alerts")
 def get_alerts():
-    """Get in-memory alerts"""
+    """Get in-memory alerts (backup — MongoDB is the source of truth)"""
     return jsonify(engine.alerts)
+
 
 @app.route("/register_upload", methods=["POST"])
 def register_upload():
@@ -514,20 +549,21 @@ def register_upload():
         d = request.json
         video_id = d.get("videoId")
         video_path = d.get("videoPath")
-        
+
         if not video_id or not video_path:
             return jsonify({"error": "Missing videoId or videoPath"}), 400
-        
+
         success = engine.register_video(video_id, video_path)
-        
+
         if success:
             return jsonify({"status": "registered", "videoId": video_id}), 200
         else:
             return jsonify({"error": "Failed to register video"}), 500
-            
+
     except Exception as e:
         print(f"Error in register_upload: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/health")
 def health():
@@ -538,10 +574,11 @@ def health():
         "alerts_count": len(engine.alerts)
     })
 
+
 if __name__ == "__main__":
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("Sea Turtle Hatchery AI Monitor")
     print("Multi-Parameter Behavioral Analysis System")
-    print("="*50 + "\n")
+    print("=" * 50 + "\n")
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, threaded=True, debug=False)

@@ -168,16 +168,16 @@ export const getAlerts = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
 
-    const filter = {};
+    const filter = {
+      type: { $in: ["behavior", "species_mixing"] }  // ← only hatchery alert types
+    };
 
-    // If date range provided, filter by it — otherwise default to today
     if (startDate && endDate) {
       filter.createdAt = {
         $gte: new Date(startDate),
         $lte: new Date(endDate),
       };
     } else {
-      // Default: today only
       const start = new Date();
       start.setHours(0, 0, 0, 0);
       const end = new Date();
