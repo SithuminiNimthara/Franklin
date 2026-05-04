@@ -41,20 +41,21 @@ export default function HatcheryAlertList() {
   const [fixNote, setFixNote] = useState("");
 
   const fetchAlerts = async () => {
-    try {
-      const { start, end } = getTodayRange();
-      const res = await fetch(
-        `${API_BASE_URL}/api/hatchery/alerts?startDate=${start}&endDate=${end}`,
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      setAlerts(data);
-    } catch (err) {
-      console.error("Failed to fetch alerts:", err);
-    } finally {
-      setLoadingAlerts(false);
-    }
-  };
+  try {
+    const { start, end } = getTodayRange();
+    const res = await fetch(
+      `${API_BASE_URL}/api/hatchery/alerts?startDate=${start}&endDate=${end}`,
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    console.log("Fetched alerts:", data); 
+    setAlerts(data);
+  } catch (err) {
+    console.error("Failed to fetch alerts:", err);
+  } finally {
+    setLoadingAlerts(false);
+  }
+};
 
   useEffect(() => {
     fetchAlerts();
