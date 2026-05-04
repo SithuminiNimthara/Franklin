@@ -8,6 +8,7 @@ from ultralytics import YOLO
 from collections import defaultdict, deque, Counter
 
 
+
 PIXELS_PER_CM = 25.0
 CONFIRMATION_WINDOW = 45
 SURFACE_FLOAT_THRESHOLD = 0.30
@@ -19,6 +20,7 @@ BL_SPEED_THRESHOLD = 0.3
 ALERT_COOLDOWN_SECONDS = 300
 
 
+
 class EnhancedBehaviorAnalyzer:
     def __init__(self):
         self.depth_history = deque(maxlen=300)
@@ -26,6 +28,7 @@ class EnhancedBehaviorAnalyzer:
         self.tilt_history = deque(maxlen=300)
         self.dive_attempts = deque(maxlen=1800)
         self.movement_patterns = deque(maxlen=3600)
+
 
     def analyze_behavior(self, bbox_width, bbox_height, center_x, center_y, history, fps, frame_height, frame_width):
         floater_score = 0
@@ -86,12 +89,13 @@ class EnhancedBehaviorAnalyzer:
         return "Normal", (0, 255, 0), "Healthy", reasons
 
 
+
 class HatcheryEngine:
     def __init__(self, model_path, node_api_url):
         self.model_path = model_path
         self.node_api_url = node_api_url
         self.model = YOLO(model_path)
-        self.video_sources = {}
+        self.video_sources = {} 
         self.states = {}
         self.monitoring = {}
         self.alerts = []
@@ -100,12 +104,14 @@ class HatcheryEngine:
         self._frame_count = {}
         self.last_confirmed = {}
 
+
+# Default values before detection starts
     def init_state(self, vid):
         self.states[vid] = {
             "status": "Initializing",
             "health": "Unknown",
             "species": "Detecting...",
-            "history": defaultdict(lambda: deque(maxlen=60))
+            "history": defaultdict(lambda: deque(maxlen=60))  #Stores trajectory (movement) of each turtle
         }
         self.monitoring[vid] = {
             "species_buffer": deque(maxlen=CONFIRMATION_WINDOW),
@@ -113,16 +119,18 @@ class HatcheryEngine:
             "health_buffer": deque(maxlen=CONFIRMATION_WINDOW)
         }
         self.behavior_analyzers[vid] = {}
-        self.last_confirmed[vid] = {
+        self.last_confirmed[vid] = {   #Each turtle gets its own analyzer object later
             "species_key": None,
             "status": None
         }
+
 
     def register_video(self, vid, path):
         self.video_sources[vid] = path
         self.init_state(vid)
         return True
 
+# If video is new, initialize it
     def process_frame(self, frame, vid, fps):
         if vid not in self.states:
             self.init_state(vid)
@@ -132,7 +140,7 @@ class HatcheryEngine:
 
         results = None
         try:
-            results = self.model.track(frame, persist=True, conf=0.5, verbose=False)
+            results = self.model.track(frame, persist=True, conf=0.5, verbose=False)  #Run YOLOv8 tracking:* track()- detects + assigns IDs to turtles,* persist=True-keeps same ID across frames,* conf=0.5-confidence threshold
         except Exception as e:
             print(f"Tracking error for {vid}: {e}")
 
@@ -173,6 +181,7 @@ class HatcheryEngine:
 
         return frame
 
+
     def update_logic(self, vid, f_species, f_status, f_health):
         m = self.monitoring[vid]
         lc = self.last_confirmed[vid]
@@ -194,7 +203,6 @@ class HatcheryEngine:
 
         if len(m["status_buffer"]) >= CONFIRMATION_WINDOW:
             all_s = [s for sub in m["species_buffer"] for s in sub]
-            # Lowered threshold to 0.3 so minority species in frame still register
             valid = [s for s, c in Counter(all_s).items() if c > CONFIRMATION_WINDOW * 0.3]
 
             crit = sum(1 for s in m["status_buffer"] if "CRITICAL" in s)
@@ -225,7 +233,6 @@ class HatcheryEngine:
             if not vid.startswith("upload_") and self.node_api_url:
                 new_species_key = frozenset(valid)
 
-                # Species: alert only when confirmed set changes AND has >1 type
                 if new_species_key != lc["species_key"]:
                     if len(valid) > 1:
                         sent = self.trigger_alert(
@@ -233,11 +240,10 @@ class HatcheryEngine:
                             f"Mixed species detected in {vid}: {', '.join(valid)}. Separation recommended."
                         )
                         if sent:
-                            lc["species_key"] = new_species_key  # only consume state if alert was sent
+                            lc["species_key"] = new_species_key
                     else:
-                        lc["species_key"] = new_species_key  # single species, always update
+                        lc["species_key"] = new_species_key
 
-                # Behavior: alert only when confirmed status transitions to abnormal
                 if final_s != lc["status"]:
                     lc["status"] = final_s
                     if final_s == "CRITICAL - Floater":
@@ -250,6 +256,7 @@ class HatcheryEngine:
                             vid, "behavior",
                             f"WARNING: Abnormal behavior detected in {vid}. Please inspect."
                         )
+
 
     def trigger_alert(self, vid, alert_type, message):
         current_time = datetime.now()
@@ -287,12 +294,14 @@ class HatcheryEngine:
             print(f"[ALERT ERROR] {e}")
             return False
 
+
     def trigger_node_update(self, vid, species, behavior, health):
-        try:
-            requests.post(
+        try:                                                        
+            response = requests.post(
                 f"{self.node_api_url}/video/{vid}/analysis",
                 json={"species": species, "behavior": behavior, "health": health},
-                timeout=0.1
+                timeout=2
             )
-        except:
-            pass
+            print(f"[UPDATE] {vid} → {response.status_code} {species} {behavior}")
+        except Exception as e:
+            print(f"[UPDATE ERROR] {e}")
