@@ -12,7 +12,7 @@ export default function Navigation({ activeTab, onTabChange }) {
   useEffect(() => {
     const fetchAlertsCount = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/hatchery/alerts`);
+        const res = await fetch(`${API_BASE_URL}/api/hatchery/alerts/all`);
         if (res.ok) {
           const data = await res.json();
           const pending = data.filter(a => (!a.status || a.status === 'pending'));
@@ -151,6 +151,15 @@ export default function Navigation({ activeTab, onTabChange }) {
                               }}
                               className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer group"
                             >
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest ${
+                                  alert.type === 'health_warning'
+                                    ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                                    : 'bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                }`}>
+                                  {alert.type === 'health_warning' ? '🩺 Health' : '🐢 Hatchery'}
+                                </span>
+                              </div>
                               <p className="text-xs font-bold text-gray-900 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-400 mb-1.5 line-clamp-2 leading-relaxed transition-colors">
                                 {alert.message}
                               </p>

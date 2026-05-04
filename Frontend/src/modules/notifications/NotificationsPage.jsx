@@ -9,7 +9,7 @@ export default function NotificationsPage({ onTabChange }) {
     useEffect(() => {
         const fetchAlerts = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/api/hatchery/alerts`);
+                const res = await fetch(`${API_BASE_URL}/api/hatchery/alerts/all`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 setAlerts(data);
@@ -117,8 +117,8 @@ function NotificationCard({ alert, getTimeAgo, isResolved, onTabChange }) {
                 <div className="flex items-center space-x-2">
                     {!isResolved && <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />}
                     {isResolved && <CheckCircle className="h-5 w-5 text-emerald-500" />}
-                    <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest ${isResolved ? 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-gray-400' : 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400'}`}>
-                        {alert.type || alert.status || "Alert"}
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest ${isResolved ? 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-gray-400' : alert.type === 'health_warning' ? 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400' : 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400'}`}>
+                        {alert.type === 'health_warning' ? '🩺 Health Alert' : '🐢 Hatchery'}
                     </span>
                 </div>
                 <span className="text-[10px] font-bold text-gray-400 flex items-center">

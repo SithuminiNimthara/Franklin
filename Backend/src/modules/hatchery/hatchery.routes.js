@@ -60,7 +60,9 @@ router.get("/data/:tankId", hatcheryController.getTankStats);
 
 router.post("/alerts/new", hatcheryController.saveAlert);
 
-router.get("/alerts", hatcheryController.getAlerts);
+router.get("/alerts/all", hatcheryController.getAllAlerts);  // all types (for notifications page)
+
+router.get("/alerts", hatcheryController.getAlerts);  // hatchery-only types
 
 router.patch(
   "/alerts/:alertId",

@@ -191,6 +191,33 @@ export const getAlerts = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch alerts" });
   }
 };
+
+// Get ALL alerts across modules (for Notifications page)
+export const getAllAlerts = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    const filter = {}; // no type filter — return all alert types
+
+    if (startDate && endDate) {
+      filter.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    } else {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+      filter.createdAt = { $gte: start, $lte: end };
+    }
+
+    const alerts = await HatcheryAlert.find(filter).sort({ createdAt: -1 });
+    res.json(alerts);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch alerts" });
+  }
+};
 // Resolve or acknowledge an alert
 export const updateAlertStatus = async (req, res) => {
   try {
