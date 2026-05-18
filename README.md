@@ -80,3 +80,6 @@ uvicorn app:app --reload
 
 ## 📄 License
 This project is licensed under the MIT License.
+
+## My contributions
+Shoreline risk analysis module, FastAPI inference integration, and React frontend visualizations.
